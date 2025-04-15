@@ -216,6 +216,19 @@ function revealAdjacentSquares(startX, startY) {
         square.isRevealed = true;
         update3DSquare(square, x, y);
 
+        // Se estava com bandeira, remove
+        if (square.isFlagged) {
+            square.isFlagged = false;
+
+            const flagMesh = square.cube.getObjectByName("flag");
+            if (flagMesh) {
+                square.cube.remove(flagMesh);
+            }
+
+            updateMinesLeft();
+        }
+
+
         // Se há minas vizinhas, pare o flood fill para este quadrado
         if (square.numNeighborMines > 0) continue;
 
@@ -321,7 +334,7 @@ function placeMinesExcluding(safeX, safeY) {
         const x = Math.floor(Math.random() * difficulty.rows);
         const y = Math.floor(Math.random() * difficulty.cols);
 
-        if (grid[x][y].isMine) continue;
+        if (grid[x][y].isMine || grid[x][y].isFlagged) continue;
         if (forbidden.has(`${x},${y}`)) continue;
 
 

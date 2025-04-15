@@ -31,6 +31,8 @@ let gameGrid;
 let gameDifficulty; 
 let startSquare = null; // Armazena o primeiro quadrado clicado
 
+const animatedFlags = [];
+
 export function clearScene() {
     console.log("🧹 Limpando cena...");
 
@@ -53,6 +55,9 @@ export function clearScene() {
             scene.remove(object);
         }
     });
+
+    animatedFlags.length = 0;
+
 
     console.log("✅ Cena limpa.");
 }
@@ -96,18 +101,19 @@ export function getIntersectedSquare(event) {
         }
     }
     return null;
-}
+} 
 
 function animate(time) {
     requestAnimationFrame(animate);
     controls.update();
 
     // Anima todas as bandeiras (caso existam)
-    scene.traverse((obj) => {
-        if (obj.tick) {
-            obj.tick(time / 1000); // tempo em segundos
+    for (const flag of animatedFlags) {
+        if (flag.tick) {
+            flag.tick(time / 1000);
         }
-    });
+    }
+    
 
     renderer.render(scene, camera);
 }
@@ -194,60 +200,57 @@ function createNumberTexture(number) {
 export function createFlag() {
     const group = new THREE.Group();
 
-    // Haste
+    // Haste (poste)
     const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8);
     const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
     const pole = new THREE.Mesh(poleGeometry, poleMaterial);
     pole.position.y = 0.4;
 
-    // Bandeira com espessura e forma animada
-    const shape = new THREE.Shape();
-    shape.moveTo(0, 0.3);
-    shape.lineTo(0, -0.1);
-    shape.lineTo(0.4, 0.1);
-    shape.lineTo(0, 0.3);
+    // Bandeira (triângulo vermelho com vértices animáveis)
+    const geometry = new THREE.BufferGeometry();
 
-    const extrudeSettings = { depth: 0.01, bevelEnabled: false };
-    const geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings);
-    geometry.translate(0, 0.5, -0.005); // centra no cubo
+    const vertices = new Float32Array([
+        0, 0.8, 0,   // A - topo junto ao poste
+        0, 0.4, 0,   // B - base junto ao poste
+        0.45, 0.6, 0  // C - ponta da bandeira
+    ]);
 
-    const material = new THREE.MeshStandardMaterial({ color: 0xff0000, side: THREE.DoubleSide });
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geometry.setIndex([0, 1, 2]);
+    geometry.computeVertexNormals();
+
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xff0000,
+        side: THREE.DoubleSide
+    });
+
     const flag = new THREE.Mesh(geometry, material);
 
-    // Armazenar posição inicial dos vértices
-    const positions = geometry.attributes.position;
-    const basePositions = new Float32Array(positions.array); // cópia original
+    // Guardar cópia dos vértices base para animar
+    const basePositions = new Float32Array(vertices);
 
-    // Adiciona tick para animar vertices
     flag.tick = (time) => {
-        const velocidade = 4;
-        const comprimentoOnda = 10;
-        const amplitude = 0.05;
-    
-        for (let i = 0; i < positions.count; i++) {
-            const x = basePositions[i * 3];
-            const zOriginal = basePositions[i * 3 + 2];
-    
-            // trava os vértices fixos na base
-            if (Math.abs(x) < 1e-4) {
-                positions.array[i * 3 + 2] = zOriginal;
-                continue;
-            }
-    
-            // onda a propagar da base para a ponta
-            const wave = Math.sin(time * velocidade - x * comprimentoOnda) * amplitude;
-    
-            positions.array[i * 3 + 2] = zOriginal + wave;
-        }
-    
+        const positions = geometry.attributes.position;
+        const amplitude = 0.03;
+        const velocidade = 5;
+
+        // Só mexemos o vértice da ponta (índice 2)
+        const i = 2;
+        const x = basePositions[i * 3];
+        const y = basePositions[i * 3 + 1];
+        const zBase = basePositions[i * 3 + 2];
+
+        const deslocamento = Math.sin(time * velocidade) * amplitude;
+
+        // Atualiza só o eixo Z da ponta
+        positions.array[i * 3 + 2] = zBase + deslocamento;
         positions.needsUpdate = true;
     };
-    
-    
-    
 
     group.add(pole);
     group.add(flag);
+    animatedFlags.push(flag);
+
 
     return group;
 }
