@@ -176,7 +176,7 @@ export function create3DGrid(grid, difficulty) {
                     const material = new THREE.MeshLambertMaterial({
                         color: 0xaaaaaa,
                         transparent: true,
-                        opacity: 0.9 // ou qualquer valor entre 0 e 1 conforme o efeito desejado
+                        opacity: 1 // ou qualquer valor entre 0 e 1 conforme o efeito desejado
                     });
                     const cube = new THREE.Mesh(geometry, material);
                     cube.userData.isCube = true;

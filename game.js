@@ -2,9 +2,9 @@ import { setupScene, create3DGrid, update3DSquare, clearScene, renderScene, getI
 import * as THREE from 'three';
 
 let difficulty_presets = {
-    easy: { size: 5, mines: 15, name: "Easy" },
-    intermediate: { size: 7, mines: 50, name: "Intermediate" },
-    expert: { size: 9, mines: 120, name: "Expert" }
+    easy: { size: 5, mines: 10, name: "Easy" },
+    intermediate: { size: 7, mines: 35, name: "Intermediate" },
+    expert: { size: 10, mines: 100, name: "Expert" }
 };
 
 let difficulty = difficulty_presets.easy;
@@ -25,6 +25,14 @@ class Square {
         this.isRevealed = false;
         this.cube = null;
     }
+}
+
+function isOnOuterShell(i, j, k, size) {
+        return (
+            i === 0 || i === size - 1 ||
+            j === 0 || j === size - 1 ||
+            k === 0 || k === size - 1
+        );
 }
 
 export function countAdjacentMines(i, j, k) {
@@ -76,26 +84,23 @@ document.addEventListener("contextmenu", function(event) {
     console.log(`🚩 Bandeira ${square.isFlagged ? 'colocada' : 'removida'} em (${intersected.i}, ${intersected.j}, ${intersected.k})`);
     updateMinesLeft();
 
-    // Remove todas as bandeiras associadas a esse cubo (em múltiplas faces)
     const toRemove = square.cube.children.filter(child => child.name && child.name.startsWith("flag_"));
     toRemove.forEach(flag => square.cube.remove(flag));
 
 
     if (square.isFlagged) {
-    const faces = getVisibleFacesForCube(intersected.i, intersected.j, intersected.k);
-    for (const face of faces) {
-        const flag = createFlagForFace(face);
-        flag.name = "flag_" + face;
-        square.cube.add(flag);
+        const faces = getVisibleFacesForCube(intersected.i, intersected.j, intersected.k);
+        for (const face of faces) {
+            const flag = createFlagForFace(face);
+            flag.name = "flag_" + face;
+            square.cube.add(flag);
+        }
     }
-}
-
-
 });
 
 function getVisibleFacesForCube(i, j, k) {
-    const size = difficulty.size;
     const faces = [];
+    const size = difficulty.size;
 
     if (k === size - 1) faces.push("front");
     if (k === 0) faces.push("back");
@@ -201,7 +206,7 @@ function handleChording(i, j, k) {
     }
 }
 
-export function clickSquare(i, j, k, face = 'front') { // 'face' aqui é a face do cubo pequeno intersetado
+export function clickSquare(i, j, k, face = 'front') {
     if (!playing) return;
 
     console.log(`🖱️ Clique ESQUERDO em (${i}, ${j}, ${k})`);
@@ -220,12 +225,9 @@ export function clickSquare(i, j, k, face = 'front') { // 'face' aqui é a face 
     if (square.isMine) {
         console.log(`💥 Clicou numa mina em (${i}, ${j}, ${k})`);
         square.isRevealed = true;
-        square.wasClicked = true; // Marcar como a mina que foi clicada
+        square.wasClicked = true; 
         
-        // *** ALTERAÇÃO CHAVE AQUI: ***
-        // update3DSquare agora lida com o desenho em todas as faces visíveis
-        // e usa o flag wasClicked para a cor.
-        update3DSquare(grid3D[i][j][k], i, j, k); // Não é preciso passar 'face' específica
+        update3DSquare(grid3D[i][j][k], i, j, k); 
         
         if (square.cube) {
             const pos = square.cube.getWorldPosition(new THREE.Vector3());
@@ -235,6 +237,7 @@ export function clickSquare(i, j, k, face = 'front') { // 'face' aqui é a face 
         revealAllMines(); 
         
         document.getElementById("restartMessage").textContent = "💥 Mine Exploded!";
+        document.getElementById("restartMessage").style.color = "#FF0000";
         document.getElementById("restartContainer").style.display = "block";
         
         playing = false;
@@ -259,10 +262,12 @@ function checkWinCondition() {
     for (let i = 0; i < difficulty.size; i++) {
         for (let j = 0; j < difficulty.size; j++) {
             for (let k = 0; k < difficulty.size; k++) {
-                if (!grid3D[i][j][k].isMine) {
-                    totalSafeSquares++;
-                    if (grid3D[i][j][k].isRevealed) {
-                        revealedSafeSquares++;
+                if (isOnOuterShell(i, j, k, difficulty.size)) {
+                    if (!grid3D[i][j][k].isMine) {
+                        totalSafeSquares++;
+                        if (grid3D[i][j][k].isRevealed) {
+                            revealedSafeSquares++;
+                        }
                     }
                 }
             }
@@ -286,45 +291,51 @@ function checkWinCondition() {
 function revealAdjacentSquares(i, j, k) {
     const queue = [{i, j, k}];
     const visited = new Set();
-    const size = difficulty.size;
-
-    function isOnOuterShell(x, y, z) {
-        return (
-            x === 0 || x === size - 1 ||
-            y === 0 || y === size - 1 ||
-            z === 0 || z === size - 1
-        );
-    }
+    const size = difficulty.size; 
 
     while (queue.length > 0) {
         const {i, j, k} = queue.shift();
         const key = `${i},${j},${k}`;
 
-        if (visited.has(key)) continue;
+        if (visited.has(key)) continue; 
         visited.add(key);
 
-        const square = grid3D[i][j][k];
+        const currentSquare = grid3D[i][j][k];
 
-        if (square.isMine || square.isFlagged) continue;
-
-        // Revelar o cubo apenas se estiver na casca exterior
-        if (isOnOuterShell(i, j, k)) {
-            square.isRevealed = true;
-            update3DSquare(grid3D[i][j][k], i, j, k);
-        } else {
-            // Se for um cubo interior e já tiver sido processado ou não for 0, continuar
-            if (square.isRevealed || square.numNeighborMines > 0) continue;
-            // Se for um cubo interior '0', revele-o mas sem atualização visual
-            // (a não ser que queira ter um feedback visual para cubos interiores 0)
-            // Para este caso, vamos assumir que não queremos representação visual interior
-            square.isRevealed = true; // Marca como revelado para que não seja processado novamente
+        // Se for uma mina ou já tiver bandeira, não revela nem propaga
+        if (currentSquare.isMine || currentSquare.isFlagged) {
+            continue;
         }
 
+        // Se já foi revelado, e é um número, para a propagação.
+        // Se for um 0 e já revelado, a propagação pode continuar, mas a revelação visual já ocorreu.
+        if (currentSquare.isRevealed) {
+            if (currentSquare.numNeighborMines > 0) {
+                continue; 
+            }
+        } else { // Se não foi revelado ainda, marca como revelado
+            currentSquare.isRevealed = true;
+        }
+        
+        // Apenas atualiza o modelo 3D se estiver na casca exterior
+        if (isOnOuterShell(i, j, k, size)) {
+            update3DSquare(currentSquare, i, j, k);
+        } else {
+            // Se o cubo atual é interior, e tem número, ele não deve propagar.
+            // Se for um 0 interior, ele marca-se como revelado, mas não visualmente.
+            // A propagação só vai continuar se os seus vizinhos forem exteriores.
+            if (currentSquare.numNeighborMines > 0) {
+                continue;
+            }
+        }
+        
+        // Se o cubo atual tem minas vizinhas (é um número), a propagação para aqui.
+        // Ele próprio foi revelado (se na casca), mas não vai revelar os seus vizinhos.
+        if (currentSquare.numNeighborMines > 0) {
+            continue;
+        }
 
-        if (square.numNeighborMines > 0 && isOnOuterShell(i, j, k)) continue;
-        // Se for um cubo interior com numNeighborMines > 0, paramos a propagação
-        if (square.numNeighborMines > 0 && !isOnOuterShell(i,j,k)) continue;
-
+        // Se o cubo atual é um 0 (sem minas vizinhas), propaga para os seus vizinhos
         for (let di = -1; di <= 1; di++) {
             for (let dj = -1; dj <= 1; dj++) {
                 for (let dk = -1; dk <= 1; dk++) {
@@ -334,15 +345,14 @@ function revealAdjacentSquares(i, j, k) {
                     if (ni >= 0 && ni < size &&
                         nj >= 0 && nj < size &&
                         nk >= 0 && nk < size) {
-                        // Apenas adicionar à fila se o vizinho estiver na casca exterior
-                        // OU se o cubo atual é interior (0) e o vizinho também é interior (0)
-                        // isto permite a "flood fill" através do interior se for necessário para ligar faces
                         const neighbor = grid3D[ni][nj][nk];
-                        if (isOnOuterShell(ni, nj, nk) && !neighbor.isRevealed && !neighbor.isFlagged) {
-                           queue.push({i: ni, j: nj, k: nk});
-                        } else if (!isOnOuterShell(ni, nj, nk) && !neighbor.isRevealed && !neighbor.isFlagged && neighbor.numNeighborMines === 0) {
-                           // Adicionar vizinhos interiores se forem 0 e não estiverem revelados/flagged
-                           queue.push({i: ni, j: nj, k: nk});
+
+                        // *** ALTERAÇÃO CHAVE AQUI: Simplificar a condição de adição à fila ***
+                        // Adiciona o vizinho à fila APENAS se:
+                        // 1. Não estiver revelado e não tiver bandeira.
+                        // 2. Estiver na CASCA EXTERIOR. (Removemos a condição de "ponte" interior)
+                        if (!neighbor.isRevealed && !neighbor.isFlagged && isOnOuterShell(ni, nj, nk, size)) {
+                            queue.push({i: ni, j: nj, k: nk});
                         }
                     }
                 }
@@ -350,7 +360,6 @@ function revealAdjacentSquares(i, j, k) {
         }
     }
 }
-
 
 function revealAllMines() {
     for (let i = 0; i < difficulty.size; i++) {
@@ -358,17 +367,9 @@ function revealAllMines() {
             for (let k = 0; k < difficulty.size; k++) {
                 const square = grid3D[i][j][k];
                 const size = difficulty.size;
-                const isOnOuterShell = (x, y, z) => (
-                    x === 0 || x === size - 1 ||
-                    y === 0 || y === size - 1 ||
-                    z === 0 || z === size - 1
-                );
                 
-                if (square.isMine && !square.isRevealed && !square.isFlagged && isOnOuterShell(i, j, k)) {
+                if (square.isMine && !square.isRevealed && !square.isFlagged && isOnOuterShell(i, j, k, size)) {
                     square.isRevealed = true;
-                    // *** ALTERAÇÃO CHAVE AQUI: ***
-                    // update3DSquare agora lida com o desenho em todas as faces visíveis
-                    // e usa o flag wasClicked (que será false aqui) para a cor.
                     update3DSquare(grid3D[i][j][k], i, j, k); 
                 }
             }
@@ -376,160 +377,10 @@ function revealAllMines() {
     }
 }
 
-/* export function clickSquare(i, j, k, face = 'front') {
-    if (!playing) return;
-
-    console.log(`🖱️ Clique ESQUERDO em (${i}, ${j}, ${k})`);
-
-    const square = grid3D[i][j][k];
-    
-    if (firstClick) {
-        placeMinesExcluding(i, j, k);
-        updateAllNeighborMineCounts();
-        startTimer();grid3D
-        firstClick = false;
-    }
-
-    if (square.isRevealed || square.isFlagged) return;
-
-    if (square.isMine) {
-        console.log(`💥 Clicou numa mina em (${i}, ${j}, ${k})`);
-        square.isRevealed = true;
-        square.wasClicked = true;
-        update3DSquare(grid3D[i][j][k], i, j, k, face);
-        
-        if (square.cube) {
-            const pos = square.cube.getWorldPosition(new THREE.Vector3());
-            createExplosionEffect(pos);
-        }
-
-        
-        revealAllMines();
-        
-        document.getElementById("restartMessage").textContent = "💥 Mina rebentada. Perdeste!";
-        document.getElementById("restartMessage").style.color = "#FF0000";
-        document.getElementById("restartContainer").style.display = "block";
-        
-        playing = false;
-        stopTimer();
-        return;
-    }
-    
-    square.isRevealed = true;
-    update3DSquare(grid3D[i][j][k], i, j, k);
-
-    if (square.numNeighborMines === 0) {
-        revealAdjacentSquares(i, j, k);
-    }
-
-    checkWinCondition();
- */
-
-/* function revealAdjacentSquares(i, j, k) {
-    const queue = [{i, j, k}];
-    const visited = new Set();
-    const size = difficulty.size;
-
-    // Helper function to check if a coordinate is on the outer shell
-    function isOnOuterShell(x, y, z) {
-        return (
-            x === 0 || x === size - 1 ||
-            y === 0 || y === size - 1 ||
-            z === 0 || z === size - 1
-        );
-    }
-
-    while (queue.length > 0) {
-        const {i, j, k} = queue.shift();
-        const key = `${i},${j},${k}`;
-
-        if (visited.has(key)) continue;
-        visited.add(key);
-
-        const square = grid3D[i][j][k];
-
-        if (square.isMine || square.isFlagged) continue;
-
-        // Ensure we only reveal squares that are on the outer shell
-        // If a square in the interior is reached (which shouldn't happen if starting from outer shell and only expanding to outer shell)
-        // or if it's already revealed, skip further processing for it.
-        if (!isOnOuterShell(i, j, k) && square.numNeighborMines === 0) { // Only reveal interior if it's a 0 and part of a chain
-            square.isRevealed = true;
-            update3DSquare(grid3D[i][j][k], i, j, k);
-            // If it's an interior 0, it should still propagate
-        } else if (isOnOuterShell(i, j, k)) {
-            square.isRevealed = true;
-            update3DSquare(grid3D[i][j][k], i, j, k);
-        } else {
-            // This case handles already revealed squares or interior squares that are not 0
-            continue;
-        }
-
-        if (square.numNeighborMines > 0 && isOnOuterShell(i, j, k)) continue;
-        if (square.numNeighborMines > 0 && !isOnOuterShell(i, j, k)) {
-            // An interior square with mines around it should not propagate
-            continue;
-        }
-
-
-        for (let di = -1; di <= 1; di++) {
-            for (let dj = -1; dj <= 1; dj++) {
-                for (let dk = -1; dk <= 1; dk++) {
-                    if (di === 0 && dj === 0 && dk === 0) continue;
-
-                    const ni = i + di, nj = j + dj, nk = k + dk;
-                    if (ni >= 0 && ni < size &&
-                        nj >= 0 && nj < size &&
-                        nk >= 0 && nk < size) {
-                        // Only add to queue if it's on the outer shell OR if the current square is an interior 0
-                        // and the neighbor is also an interior square (to allow chained reveals through interior)
-                        if (isOnOuterShell(ni, nj, nk) || (!isOnOuterShell(i, j, k) && !isOnOuterShell(ni, nj, nk))) {
-                           queue.push({i: ni, j: nj, k: nk});
-                        }
-                    }
-                }
-            }
-        }
-    }
- */
-
 document.getElementById("restartButton").addEventListener("click", function() {
     document.getElementById("restartContainer").style.display = "none";
     restartGame();
 });
-
-/* function checkWinCondition() {
-    let totalSafeSquares = 0;
-    let revealedSafeSquares = 0;
-
-    for (let i = 0; i < difficulty.size; i++) {
-        for (let j = 0; j < difficulty.size; j++) {
-            for (let k = 0; k < difficulty.size; k++) {
-                if (!grid3D[i][j][k].isMine) {
-                    totalSafeSquares++; // Conta todas as casas seguras
-                    if (grid3D[i][j][k].isRevealed) {
-                        revealedSafeSquares++; // Conta as casas seguras que foram reveladas
-                    }
-                }
-            }
-        }
-    }
-
-    // A condição de vitória é quando o número de casas seguras reveladas
-    // é igual ao número total de casas seguras.
-    if (totalSafeSquares === revealedSafeSquares) {
-        document.getElementById("restartMessage").textContent = "🎉 Parabéns! Ganhaste!";
-        document.getElementById("restartMessage").style.color = "#00FF00";
-        document.getElementById("restartButton").style.backgroundColor = "#00cc00";
-        document.getElementById("restartContainer").style.display = "block";
-        playing = false;
-        if (timerStart) {
-            const currentTime = (performance.now() - timerStart) / 1000;
-            updateHighScoreIfNeeded(currentTime);
-        }        
-        stopTimer();
-    }
- */
 
 function restartGame() {
     playing = true;
@@ -552,7 +403,6 @@ function placeMinesExcluding(safeI, safeJ, safeK) {
     let placed = 0;
     const safeZone = new Set();
 
-    // Define zona segura em torno do primeiro clique
     for (let di = -1; di <= 1; di++) {
         for (let dj = -1; dj <= 1; dj++) {
             for (let dk = -1; dk <= 1; dk++) {
@@ -568,15 +418,6 @@ function placeMinesExcluding(safeI, safeJ, safeK) {
 
     const size = difficulty.size;
 
-    // Função auxiliar: está na "casca"?
-    function isOnOuterShell(i, j, k) {
-        return (
-            i === 0 || i === size - 1 ||
-            j === 0 || j === size - 1 ||
-            k === 0 || k === size - 1
-        );
-    }
-
     while (placed < difficulty.mines) {
         const i = Math.floor(Math.random() * size);
         const j = Math.floor(Math.random() * size);
@@ -585,9 +426,9 @@ function placeMinesExcluding(safeI, safeJ, safeK) {
         const square = grid3D[i][j][k];
 
         if (
-            isOnOuterShell(i, j, k) &&        // ✅ está na superfície
-            !square.isMine &&                 // ainda não tem mina
-            !safeZone.has(`${i},${j},${k}`)   // não é zona segura
+            isOnOuterShell(i, j, k, size) &&
+            !square.isMine &&
+            !safeZone.has(`${i},${j},${k}`)
         ) {
             square.isMine = true;
             placed++;
@@ -681,19 +522,5 @@ function createGrid() {
             Array(size).fill().map(() => new Square())
         ));
 }
-
-/* function revealAllMines() {
-    for (let i = 0; i < difficulty.size; i++) {
-        for (let j = 0; j < difficulty.size; j++) {
-            for (let k = 0; k < difficulty.size; k++) {
-                const square = grid3D[i][j][k];
-                if (square.isMine && !square.isRevealed && !square.isFlagged) {
-                    square.isRevealed = true;
-                    update3DSquare(grid3D[i][j][k], i, j, k);
-                }
-            }
-        }
-    }
-} */
 
 startGame();
