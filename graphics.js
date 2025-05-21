@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.139.2/examples/jsm/geometries/RoundedBoxGeometry.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
+import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
+
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x224422);
@@ -8,8 +11,13 @@ const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerH
 camera.position.set(0, 20, 0);
 camera.lookAt(0, 0, 0);
 
+
+
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 0.4;
 document.getElementById("WebGL-output").appendChild(renderer.domElement);
 
 const controls = new OrbitControls(camera, renderer.domElement);
@@ -23,11 +31,23 @@ directionalLight.position.set(10, 20, 10);
 directionalLight.castShadow = true;
 scene.add(directionalLight);
 
+const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
+backLight.position.set(-10, 15, -10);
+scene.add(backLight);
+
+
 let gameGrid;
 let gameDifficulty;
 const animatedFlags = [];
-const axesHelper = new THREE.AxesHelper(5);
-//scene.add(axesHelper);
+
+
+const rgbeLoader = new RGBELoader();
+rgbeLoader.load('textures/industrial_sunset_02_puresky_1k.hdr', function(texture) {
+    texture.mapping = THREE.EquirectangularReflectionMapping;
+    scene.environment = texture;
+    scene.background = texture;
+});
+
 
 export function clearScene() {
     const objectsToRemove = [...scene.children];
@@ -57,6 +77,37 @@ export function setupScene(grid, difficulty) {
     
     controls.target.set(0, 0, 0);
     controls.update();
+
+
+    // Adiciona plano de relva abaixo da grelha
+    const groundSize = 1000;
+    const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 1, 1);
+
+    const textureLoader = new THREE.TextureLoader();
+
+    const colorMap = textureLoader.load('textures/brown_mud_leaves_01_diff_1k.jpg');
+    colorMap.wrapS = colorMap.wrapT = THREE.RepeatWrapping;
+    colorMap.repeat.set(20, 20); // Repete bastante para parecer natural
+
+    const normalMap = textureLoader.load('textures/brown_mud_leaves_01_disp_1k.png');
+    normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
+    normalMap.repeat.set(20, 20);
+
+    const grassMaterial = new THREE.MeshStandardMaterial({
+        map: colorMap,
+        normalMap: normalMap,
+        side: THREE.DoubleSide
+    });
+
+
+
+    const ground = new THREE.Mesh(groundGeometry, grassMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.y = -difficulty.size * 3 - 1;
+    ground.userData.isBackground = true;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
 }
 
 export function renderScene() {
@@ -74,11 +125,17 @@ export function getIntersectedSquare(event) {
 
     const intersects = raycaster.intersectObjects(scene.children, true);
     
-    if (intersects.length > 0 && intersects[0].face) {
-        let object = intersects[0].object;
+    for (const hit of intersects) {
+        let object = hit.object;
+
+        // ⛔ Ignorar objetos marcados como plano de fundo
+        if (object.userData?.isBackground) continue;
+
+        // ⛏️ Subir até encontrar o cubo principal (com userData.isCube)
         while (object && !object.userData?.isCube && object.parent) {
             object = object.parent;
         }
+
         const cube = object;
         const pos = cube.position.clone().add(new THREE.Vector3(
             gameDifficulty.size/2 - 0.5,
@@ -94,16 +151,11 @@ export function getIntersectedSquare(event) {
             j >= 0 && j < gameDifficulty.size &&
             k >= 0 && k < gameDifficulty.size) {
             
-            // --- ALTERAÇÃO AQUI ---
-            // Em vez de usar a normal da face intersetada diretamente,
-            // vamos determinar qual face do CUBO GRANDE corresponde a esta intersecção.
             const size = gameDifficulty.size;
             let externalFace = 'unknown';
 
-            // Verifica se a intersecção está numa das faces exteriores do cubo grande
-            // usando as coordenadas da grelha (i, j, k) e a normal da face.
-            const normal = intersects[0].face.normal;
-            const epsilon = 0.1; // Para tolerância de ponto flutuante
+            const normal = hit.face.normal;
+            const epsilon = 0.1;
 
             if (Math.abs(normal.z - 1) < epsilon && k === size - 1) externalFace = 'front';
             else if (Math.abs(normal.z + 1) < epsilon && k === 0) externalFace = 'back';
@@ -111,23 +163,22 @@ export function getIntersectedSquare(event) {
             else if (Math.abs(normal.x + 1) < epsilon && i === 0) externalFace = 'left';
             else if (Math.abs(normal.y - 1) < epsilon && j === size - 1) externalFace = 'top';
             else if (Math.abs(normal.y + 1) < epsilon && j === 0) externalFace = 'bottom';
-            // Se o cubo está no interior e a face intersetada não é uma face exterior do cubo grande
-            // pode ser um clique "através" de um cubo transparente, o que não deve acontecer
-            // se o cubo interior não for intersetável ou a opacidade for 1.
-            // Se externalFace ainda for 'unknown', podemos fallback para a face original ou 'top'.
+
             if (externalFace === 'unknown') {
-                externalFace = getFaceFromNormal(normal); // Usa a função existente como fallback
+                externalFace = getFaceFromNormal(normal);
             }
 
             return { 
                 i, j, k,
                 cube,
-                face: externalFace // Usar a face EXTERIOR do cubo grande
+                face: externalFace
             };
         }
     }
+
     return null;
 }
+
 
 function getFaceFromNormal(normal) {
     const epsilon = 0.1;

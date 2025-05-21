@@ -1,54 +1,17 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
     <title>Minesweeper 3D</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
 
+    <!-- 🎯 Styling -->
     <style>
         body {
             background-color: #ffffff;
             margin: 0px;
             overflow: hidden;
         }
-    </style>
-
-    <!-- Importmap para carregar módulos corretamente no Live Server -->
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://threejs.org/build/three.module.js",
-                "three/examples/jsm/controls/OrbitControls.js": "https://threejs.org/examples/jsm/controls/OrbitControls.js"
-            }
-        }
-    </script>
-</head>
-
-<body>
-
-    <div id="difficultyContainer">
-        <label for="difficultySelect">Difficulty:</label>
-        <select id="difficultySelect">
-            <option value="easy">Easy</option>
-            <option value="intermediate">Intermediate</option>
-            <option value="expert">Expert</option>
-        </select>
-    </div>
-
-
-    <div id="timer">
-        ⏱️ Time: <span id="timeValue">0.0s</span><br>
-        💣 Mines Left: <span id="minesValue">--</span><br>
-        🏆 Best: <span id="bestValue">--</span>
-      </div>
-      
-
-    <!-- <div id="minesLeft">💣 Mines Left: --</div> -->
-
-      
-    
-    <style>
         #difficultyContainer {
             position: absolute;
             top: 10px;
@@ -60,7 +23,6 @@
             font-size: large;
             color: rgb(212, 248, 255);
         }
-
         #timer {
             position: absolute;
             top: 10px;
@@ -72,80 +34,85 @@
             font-family: 'Poppins', sans-serif;
             font-size: 18px;
         }
-
-        #minesLeft {
+        #restartContainer {
             position: absolute;
-            top: 70px;
-            right: 10px;
-            background: rgba(51, 51, 51, 0.9);
-            color: #ffffff;
-            padding: 10px;
+            top: 15%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(35, 36, 102, 0.449);
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            color: #ff0000bd;
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Nunito', sans-serif;
+            min-width: 250px;
+            display: none;
+        }
+        #restartButton {
+            font-size: 20px;
+            padding: 10px 20px;
+            margin-top: 10px;
+            cursor: pointer;
+            background-color: #ff4444d5;
+            color: white;
+            border: none;
             border-radius: 5px;
             font-family: 'Poppins', sans-serif;
-            font-size: 18px;
         }
-
-    
-        #difficultySelect, #changeDifficulty {
-            margin-right: 5px;
-            padding: 5px;
-            font-size: 16px;
-        }   
+        #restartButton:hover {
+            background-color: #cc0000;
+        }
     </style>
 
-<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@600&display=swap" rel="stylesheet">
 
+    <!-- ✅ Import map: inclui Three.js + OrbitControls + EXRLoader -->
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://threejs.org/build/three.module.js",
+            "three/examples/jsm/controls/OrbitControls.js": "https://threejs.org/examples/jsm/controls/OrbitControls.js",
+            "three/examples/jsm/loaders/EXRLoader.js": "https://threejs.org/examples/jsm/loaders/EXRLoader.js",
+            "three/examples/jsm/loaders/RGBELoader.js": "https://threejs.org/examples/jsm/loaders/RGBELoader.js"
 
-<div id="restartContainer" style="display: none;">
-    <p id="restartMessage">Mine exploded! You lost</p>
-    <button id="restartButton">Restart</button>
-</div>
-
-<style>
-    #restartContainer {
-        position: absolute;
-        top: 15%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: rgba(35, 36, 102, 0.449); /* Fundo semi-transparente */
-        padding: 20px;
-        border-radius: 10px;
-        text-align: center;
-        color: #ff0000bd; 
-        font-size: 28px; 
-        font-weight: bold;
-        font-family: 'Nunito', sans-serif; /* 🔥 Fonte arredondada */
-        display: none;
-        min-width: 250px; /* 🔥 Garante um tamanho mínimo */
+        }
     }
+    </script>
+</head>
 
-    #restartButton {
-        font-size: 20px;
-        padding: 10px 20px;
-        margin-top: 10px;
-        cursor: pointer;
-        background-color: #ff4444d5;
-        color: white;
-        border: none;
-        border-radius: 5px;
-        font-family: 'Poppins', sans-serif; /* 🔥 Fonte arredondada */
-    }
+<body>
+    <!-- 🔘 Interface de dificuldade -->
+    <div id="difficultyContainer">
+        <label for="difficultySelect">Difficulty:</label>
+        <select id="difficultySelect">
+            <option value="easy">Easy</option>
+            <option value="intermediate">Intermediate</option>
+            <option value="expert">Expert</option>
+        </select>
+    </div>
 
-    #restartButton:hover {
-        background-color: #cc0000;
-    }
-</style>
+    <!-- 🕒 Temporizador -->
+    <div id="timer">
+        ⏱️ Time: <span id="timeValue">0.0s</span><br>
+        💣 Mines Left: <span id="minesValue">--</span><br>
+        🏆 Best: <span id="bestValue">--</span>
+    </div>
 
-    
-    
-    <!-- Div para o jogo -->
+    <!-- 🔁 Mensagem de reinício -->
+    <div id="restartContainer">
+        <p id="restartMessage">Mine exploded! You lost</p>
+        <button id="restartButton">Restart</button>
+    </div>
+
+    <!-- 🌍 Onde o WebGL será renderizado -->
     <div id="WebGL-output"></div>
 
-    <!-- Código principal -->
+    <!-- 🧠 Código principal do jogo -->
     <script type="module">
-        import './game.js'; // Apenas importar game.js para iniciar o jogo
+        import './game.js'; // o jogo começa aqui
     </script>
-    
-
 </body>
 </html>
