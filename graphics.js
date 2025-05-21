@@ -66,6 +66,7 @@ export function renderScene() {
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+
 export function getIntersectedSquare(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
@@ -92,10 +93,36 @@ export function getIntersectedSquare(event) {
         if (i >= 0 && i < gameDifficulty.size &&
             j >= 0 && j < gameDifficulty.size &&
             k >= 0 && k < gameDifficulty.size) {
+            
+            // --- ALTERAÇÃO AQUI ---
+            // Em vez de usar a normal da face intersetada diretamente,
+            // vamos determinar qual face do CUBO GRANDE corresponde a esta intersecção.
+            const size = gameDifficulty.size;
+            let externalFace = 'unknown';
+
+            // Verifica se a intersecção está numa das faces exteriores do cubo grande
+            // usando as coordenadas da grelha (i, j, k) e a normal da face.
+            const normal = intersects[0].face.normal;
+            const epsilon = 0.1; // Para tolerância de ponto flutuante
+
+            if (Math.abs(normal.z - 1) < epsilon && k === size - 1) externalFace = 'front';
+            else if (Math.abs(normal.z + 1) < epsilon && k === 0) externalFace = 'back';
+            else if (Math.abs(normal.x - 1) < epsilon && i === size - 1) externalFace = 'right';
+            else if (Math.abs(normal.x + 1) < epsilon && i === 0) externalFace = 'left';
+            else if (Math.abs(normal.y - 1) < epsilon && j === size - 1) externalFace = 'top';
+            else if (Math.abs(normal.y + 1) < epsilon && j === 0) externalFace = 'bottom';
+            // Se o cubo está no interior e a face intersetada não é uma face exterior do cubo grande
+            // pode ser um clique "através" de um cubo transparente, o que não deve acontecer
+            // se o cubo interior não for intersetável ou a opacidade for 1.
+            // Se externalFace ainda for 'unknown', podemos fallback para a face original ou 'top'.
+            if (externalFace === 'unknown') {
+                externalFace = getFaceFromNormal(normal); // Usa a função existente como fallback
+            }
+
             return { 
                 i, j, k,
                 cube,
-                face: getFaceFromNormal(intersects[0].face.normal)
+                face: externalFace // Usar a face EXTERIOR do cubo grande
             };
         }
     }
@@ -162,22 +189,44 @@ export function create3DGrid(grid, difficulty) {
     }
 }
 
-export function update3DSquare(square, i, j, k, face = 'front') {
+export function update3DSquare(square, i, j, k, clickedFace = null) {
     if (!square.cube) return;
 
-    const oldMine = square.cube.getObjectByName("mineModel");
-    if (oldMine) square.cube.remove(oldMine);
+    // Remover todas as minas existentes antes de adicionar novas
+    const oldMines = square.cube.children.filter(child => child.name && child.name.startsWith("mineModel_"));
+    oldMines.forEach(mine => square.cube.remove(mine));
     
-    const oldNumber = square.cube.getObjectByName("numberModel");
-    if (oldNumber) square.cube.remove(oldNumber);
+    // Remover todos os números existentes
+    const oldNumbers = square.cube.children.filter(child => child.name && child.name.startsWith("numberModel_"));
+    oldNumbers.forEach(number => square.cube.remove(number));
+
 
     if (square.isRevealed) {
         if (square.isMine) {
-            const mine = createMineMesh(square.wasClicked);
-            mine.name = "mineModel";
-            mine.position.set(0, 0, 0);
-            square.cube.add(mine);
-            square.cube.material.color.set(0xff0000);
+            square.cube.material.color.set(0xff0000); // Cor de mina revelada
+            
+            // Lógica para determinar as faces visíveis (duplicada de game.js para autonomia)
+            // É importante que gameDifficulty esteja acessível aqui (exportada e atribuída).
+            const size = gameDifficulty.size; 
+            const visibleFaces = [];
+            if (k === size - 1) visibleFaces.push("front");
+            if (k === 0) visibleFaces.push("back");
+            if (i === size - 1) visibleFaces.push("right");
+            if (i === 0) visibleFaces.push("left");
+            if (j === size - 1) visibleFaces.push("top");
+            if (j === 0) visibleFaces.push("bottom");
+
+            // *** ALTERAÇÃO CHAVE AQUI: ***
+            // Agora, para TODAS as minas reveladas (clicadas ou não),
+            // adiciona-se uma mina em CADA FACE VISÍVEL.
+            for (const face of visibleFaces) {
+                // A mina clicada (square.wasClicked) terá a sua cor especial
+                const mine = createMineMesh(square.wasClicked); 
+                mine.name = `mineModel_${face}`;
+                positionObjectOverFace(mine, face);
+                square.cube.add(mine);
+            }
+
         } else if (square.numNeighborMines > 0) {
             square.cube.material.color.set(0x000000); // preto
             const numberTexture = createNumberTexture(square.numNeighborMines);
@@ -186,6 +235,8 @@ export function update3DSquare(square, i, j, k, face = 'front') {
                 transparent: true
             });
             const numberGeometry = new THREE.PlaneGeometry(0.8, 0.8);
+            
+            // Faces para posicionar os números (já estavam a aparecer em todas as faces, manter)
             const faces = [
                 { name: 'front', position: [0, 0, 0.51], rotation: [0, 0, 0] },
                 { name: 'back', position: [0, 0, -0.51], rotation: [0, Math.PI, 0] },
@@ -199,14 +250,43 @@ export function update3DSquare(square, i, j, k, face = 'front') {
                 const number = new THREE.Mesh(numberGeometry, numberMaterial.clone());
                 number.name = `numberModel_${face.name}`;
                 number.position.set(...face.position);
-                number.rotation.set(...face.rotation);
+                number.rotation.set(...face.rotation); // Mantém rotação para os números
                 square.cube.add(number);
             }
 
         } else {
-        // ✅ Cubo revelado, sem mina e sem minas ao redor
-        square.cube.material.color.set(0x00aa00); // verde
+            // ✅ Cubo revelado, sem mina e sem minas ao redor
+            square.cube.material.color.set(0x00aa00); // verde
+        }
     }
+}
+
+// Nova função para posicionar objetos sobre a face
+function positionObjectOverFace(object, face) {
+    const offset = 0.8; // Um pouco mais que o raio do cubo para pairar sobre a face
+
+    switch (face) {
+        case 'front': // Z+
+            object.position.set(0, 0, offset);
+            break;
+        case 'back': // Z-
+            object.position.set(0, 0, -offset);
+            break;
+        case 'right': // X+
+            object.position.set(offset, 0, 0);
+            break;
+        case 'left': // X-
+            object.position.set(-offset, 0, 0);
+            break;
+        case 'top': // Y+
+            object.position.set(0, offset, 0);
+            break;
+        case 'bottom': // Y-
+            object.position.set(0, -offset, 0);
+            break;
+        default:
+            object.position.set(0, 0, offset); // Padrão para 'front'
+            break;
     }
 }
 
