@@ -1,9 +1,7 @@
 import * as THREE from 'three';
-import { countAdjacentMines, clickSquare } from './game.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.139.2/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-// Configuração da cena, câmera e renderizador
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x224422);
 const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -14,11 +12,9 @@ const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.getElementById("WebGL-output").appendChild(renderer.domElement);
 
-// Controles da câmera
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 
-// Luzes
 const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
 scene.add(ambientLight);
 
@@ -27,23 +23,17 @@ directionalLight.position.set(10, 20, 10);
 directionalLight.castShadow = true;
 scene.add(directionalLight);
 
-let gameGrid; 
-let gameDifficulty; 
-let startSquare = null; // Armazena o primeiro quadrado clicado
-
+let gameGrid;
+let gameDifficulty;
 const animatedFlags = [];
+const axesHelper = new THREE.AxesHelper(5);
+//scene.add(axesHelper);
 
 export function clearScene() {
-    console.log("🧹 Limpando cena...");
-
-    if (!scene) return;
-
-    let objectsToRemove = [...scene.children];
-
+    const objectsToRemove = [...scene.children];
     objectsToRemove.forEach((object) => {
         if (object.isMesh) {
             if (object.geometry) object.geometry.dispose();
-
             if (object.material) {
                 if (Array.isArray(object.material)) {
                     object.material.forEach(mat => mat.dispose());
@@ -51,125 +41,172 @@ export function clearScene() {
                     object.material.dispose();
                 }
             }
-
             scene.remove(object);
         }
     });
-
     animatedFlags.length = 0;
-
-
-    console.log("✅ Cena limpa.");
 }
 
 export function setupScene(grid, difficulty) {
-    console.log("🔄 Atualizando cena com nova dificuldade:", difficulty.name);
-
     gameGrid = grid;
     gameDifficulty = difficulty;
-    camera.position.set(difficulty.rows / 2, 20, difficulty.cols / 2);
-    camera.lookAt(difficulty.rows / 2, 0, difficulty.cols / 2);
     
-    animate();
+    const cubeSize = difficulty.size;
+    camera.position.set(cubeSize * 1.5, cubeSize * 1.5, cubeSize * 1.5);
+    camera.lookAt(0, 0, 0);
+    
+    controls.target.set(0, 0, 0);
+    controls.update();
 }
 
 export function renderScene() {
-    renderer.clear(); 
     renderer.render(scene, camera);
 }
 
-// Criar raycaster e vetor do mouse
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
-// Obtém o quadrado clicado na cena
 export function getIntersectedSquare(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
     raycaster.setFromCamera(mouse, camera);
 
-    if (!gameGrid || !gameGrid.flat) return null;
-    const intersects = raycaster.intersectObjects(gameGrid.flat().map(square => square.cube), true);
-    if (intersects.length > 0) {
-        const clickedCube = intersects[0].object;
-        for (let i = 0; i < gameDifficulty.rows; i++) {
-            for (let j = 0; j < gameDifficulty.cols; j++) {
-                if (gameGrid[i][j].cube === clickedCube) {
-                    return { x: i, y: j };
+    const intersects = raycaster.intersectObjects(scene.children, true);
+    
+    if (intersects.length > 0 && intersects[0].face) {
+        let object = intersects[0].object;
+        while (object && !object.userData?.isCube && object.parent) {
+            object = object.parent;
+        }
+        const cube = object;
+        const pos = cube.position.clone().add(new THREE.Vector3(
+            gameDifficulty.size/2 - 0.5,
+            gameDifficulty.size/2 - 0.5,
+            gameDifficulty.size/2 - 0.5
+        ));
+        
+        const i = Math.round(pos.x);
+        const j = Math.round(pos.y);
+        const k = Math.round(pos.z);
+        
+        if (i >= 0 && i < gameDifficulty.size &&
+            j >= 0 && j < gameDifficulty.size &&
+            k >= 0 && k < gameDifficulty.size) {
+            return { 
+                i, j, k,
+                cube,
+                face: getFaceFromNormal(intersects[0].face.normal)
+            };
+        }
+    }
+    return null;
+}
+
+function getFaceFromNormal(normal) {
+    const epsilon = 0.1;
+    if (Math.abs(normal.z - 1) < epsilon) return 'front';
+    if (Math.abs(normal.z + 1) < epsilon) return 'back';
+    if (Math.abs(normal.x - 1) < epsilon) return 'right';
+    if (Math.abs(normal.x + 1) < epsilon) return 'left';
+    if (Math.abs(normal.y - 1) < epsilon) return 'top';
+    if (Math.abs(normal.y + 1) < epsilon) return 'bottom';
+    return 'unknown';
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+
+    for (const flag of animatedFlags) {
+        if (flag.tick) {
+            flag.tick(performance.now() / 1000);
+        }
+    }
+
+    renderer.render(scene, camera);
+}
+animate();
+
+export function create3DGrid(grid, difficulty) {
+    const size = difficulty.size;
+    const faceMappings = {
+        front: (x, y) => [x, y, size-1],
+        back: (x, y) => [x, y, 0],
+        right: (x, y) => [size-1, y, x],
+        left: (x, y) => [0, y, x],
+        top: (x, y) => [x, size-1, y],
+        bottom: (x, y) => [x, 0, y]
+    };
+
+    for (const [face, mapper] of Object.entries(faceMappings)) {
+        for (let x = 0; x < size; x++) {
+            for (let y = 0; y < size; y++) {
+                const [i, j, k] = mapper(x, y);
+                const square = grid[i][j][k];
+                
+                if (!square.cube) {
+                    const geometry = new RoundedBoxGeometry(1, 1, 1, 6, 0.2);
+                    const material = new THREE.MeshLambertMaterial({
+                        color: 0xaaaaaa,
+                        transparent: true,
+                        opacity: 0.9 // ou qualquer valor entre 0 e 1 conforme o efeito desejado
+                    });
+                    const cube = new THREE.Mesh(geometry, material);
+                    cube.userData.isCube = true;
+                    cube.position.set(i - size/2 + 0.5, j - size/2 + 0.5, k - size/2 + 0.5);
+                    scene.add(cube);
+                    square.cube = cube;
                 }
             }
         }
     }
-    return null;
-} 
-
-function animate(time) {
-    requestAnimationFrame(animate);
-    controls.update();
-
-    // Anima todas as bandeiras (caso existam)
-    for (const flag of animatedFlags) {
-        if (flag.tick) {
-            flag.tick(time / 1000);
-        }
-    }
-    
-
-    renderer.render(scene, camera);
 }
 
-export function create3DGrid(grid, difficulty) {
-    let count = 0; 
-    for (let i = 0; i < difficulty.rows; i++) {
-        for (let j = 0; j < difficulty.cols; j++) {
-            const square = grid[i][j];
-            const radius = 0.2;
-            const geometry = new RoundedBoxGeometry(1, 1, 1, 6, radius);
-            const material = new THREE.MeshLambertMaterial({ color: 0xaaaaaa });
-            const cube = new THREE.Mesh(geometry, material);
-
-            const offsetX = (difficulty.rows - 1) / 2;
-            const offsetZ = (difficulty.cols - 1) / 2;
-            cube.position.set(i - offsetX, 0, j - offsetZ);
-
-            square.cube = cube;
-            scene.add(cube);
-            count++;
-        }
-    }
-    console.log("Cubos recriados:", count);
-}
-
-export function update3DSquare(square, x, y) {
-    console.log(`🟩 Atualizando quadrado (${x}, ${y}) - Minas vizinhas: ${square.numNeighborMines}`);
-
+export function update3DSquare(square, i, j, k, face = 'front') {
     if (!square.cube) return;
 
-    if (square.isMine) {
-        const isExplodedMine = square.wasClicked;
-        const mine = createMineMesh(isExplodedMine);
-        mine.name = "mineModel"; // útil se quiseres remover mais tarde
+    const oldMine = square.cube.getObjectByName("mineModel");
+    if (oldMine) square.cube.remove(oldMine);
     
-        mine.position.set(0, 0.75, 0); // ligeiramente acima do cubo (altura = 1)
-        square.cube.add(mine); // adiciona como filho do cubo
-        square.cube.material.color.set(0xff0000);
-        return;
+    const oldNumber = square.cube.getObjectByName("numberModel");
+    if (oldNumber) square.cube.remove(oldNumber);
 
-    } else if (square.numNeighborMines === 0) {
-        square.cube.material.color.set(0x00ff00); // 🔥 Verde para blocos vazios
-    } else {
-        let mineCount = square.numNeighborMines;
-        const numberTexture = createNumberTexture(mineCount);
+    if (square.isRevealed) {
+        if (square.isMine) {
+            const mine = createMineMesh(square.wasClicked);
+            mine.name = "mineModel";
+            mine.position.set(0, 0, 0);
+            square.cube.add(mine);
+            square.cube.material.color.set(0xff0000);
+        } else if (square.numNeighborMines > 0) {
+            square.cube.material.color.set(0x000000); // preto
+            const numberTexture = createNumberTexture(square.numNeighborMines);
+            const numberMaterial = new THREE.MeshBasicMaterial({ 
+                map: numberTexture,
+                transparent: true
+            });
+            const numberGeometry = new THREE.PlaneGeometry(0.8, 0.8);
+            const faces = [
+                { name: 'front', position: [0, 0, 0.51], rotation: [0, 0, 0] },
+                { name: 'back', position: [0, 0, -0.51], rotation: [0, Math.PI, 0] },
+                { name: 'right', position: [0.51, 0, 0], rotation: [0, Math.PI / 2, 0] },
+                { name: 'left', position: [-0.51, 0, 0], rotation: [0, -Math.PI / 2, 0] },
+                { name: 'top', position: [0, 0.51, 0], rotation: [-Math.PI / 2, 0, 0] },
+                { name: 'bottom', position: [0, -0.51, 0], rotation: [Math.PI / 2, 0, 0] },
+            ];
 
-        const numberedMaterial = new THREE.MeshBasicMaterial({ map: numberTexture });
+            for (const face of faces) {
+                const number = new THREE.Mesh(numberGeometry, numberMaterial.clone());
+                number.name = `numberModel_${face.name}`;
+                number.position.set(...face.position);
+                number.rotation.set(...face.rotation);
+                square.cube.add(number);
+            }
 
-        const materials = [
-            numberedMaterial, numberedMaterial, numberedMaterial,
-            numberedMaterial, numberedMaterial, numberedMaterial
-        ];
-
-        square.cube.material = materials;
-        square.cube.material.needsUpdate = true;
+        } else {
+        // ✅ Cubo revelado, sem mina e sem minas ao redor
+        square.cube.material.color.set(0x00aa00); // verde
+    }
     }
 }
 
@@ -200,21 +237,13 @@ function createNumberTexture(number) {
 export function createFlag() {
     const group = new THREE.Group();
 
-    // Haste (poste)
     const poleGeometry = new THREE.CylinderGeometry(0.05, 0.05, 0.8, 8);
     const poleMaterial = new THREE.MeshStandardMaterial({ color: 0x444444 });
     const pole = new THREE.Mesh(poleGeometry, poleMaterial);
     pole.position.y = 0.4;
 
-    // Bandeira (triângulo vermelho com vértices animáveis)
     const geometry = new THREE.BufferGeometry();
-
-    const vertices = new Float32Array([
-        0, 0.8, 0,   // A - topo junto ao poste
-        0, 0.4, 0,   // B - base junto ao poste
-        0.45, 0.6, 0  // C - ponta da bandeira
-    ]);
-
+    const vertices = new Float32Array([0, 0.8, 0, 0, 0.4, 0, 0.45, 0.6, 0]);
     geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
     geometry.setIndex([0, 1, 2]);
     geometry.computeVertexNormals();
@@ -225,25 +254,15 @@ export function createFlag() {
     });
 
     const flag = new THREE.Mesh(geometry, material);
-
-    // Guardar cópia dos vértices base para animar
     const basePositions = new Float32Array(vertices);
 
     flag.tick = (time) => {
         const positions = geometry.attributes.position;
         const amplitude = 0.03;
         const velocidade = 5;
-
-        // Só mexemos o vértice da ponta (índice 2)
         const i = 2;
-        const x = basePositions[i * 3];
-        const y = basePositions[i * 3 + 1];
         const zBase = basePositions[i * 3 + 2];
-
-        const deslocamento = Math.sin(time * velocidade) * amplitude;
-
-        // Atualiza só o eixo Z da ponta
-        positions.array[i * 3 + 2] = zBase + deslocamento;
+        positions.array[i * 3 + 2] = zBase + Math.sin(time * velocidade) * amplitude;
         positions.needsUpdate = true;
     };
 
@@ -251,14 +270,65 @@ export function createFlag() {
     group.add(flag);
     animatedFlags.push(flag);
 
-
     return group;
 }
+
+export function createFlagForFace(face) {
+    const flag = createFlag(); // o modelo base
+    const offset = 0.51;
+
+    switch (face) {
+            // DONE
+        case 'front': // Z+
+            flag.position.set(0, 0, offset);
+            flag.rotation.set(Math.PI/2, 0, 0);
+            break;
+
+            //DONE
+        case 'back': // Z-
+            flag.position.set(0, 0, -offset);
+            flag.rotation.set(-Math.PI/2, 0, 0);
+            break;
+
+            // DONE
+        case 'right': // X+
+            flag.position.set(offset, 0, 0);
+            flag.rotation.set(0, 0, -Math.PI/2);
+            break;
+
+            // DONE
+        case 'left': // X-
+            flag.position.set(-offset, 0, 0);
+            flag.rotation.set(0, 0, Math.PI/2);
+            break;
+
+            // DONE
+        case 'top': // Y+
+            flag.position.set(0, offset, 0);
+            flag.rotation.set(0, 0, 0);
+            break;
+
+            //DONE
+        case 'bottom': // Y-
+            flag.position.set(0, -offset, 0);
+            flag.rotation.set(Math.PI, 0, 0);
+            break;
+
+
+        default:
+            flag.position.set(0, offset, 0);
+            flag.rotation.set(0, 0, 0);
+            break;
+    }
+
+    flag.name = "flag";
+    return flag;
+}
+
 
 function createMineMesh(isExploded = false) {
     const group = new THREE.Group();
 
-    // Corpo da mina (esfera)
     const body = new THREE.SphereGeometry(0.2, 16, 16);
     const material = new THREE.MeshStandardMaterial({
         color: isExploded ? 0x880000 : 0x111111,
@@ -268,33 +338,21 @@ function createMineMesh(isExploded = false) {
     const sphere = new THREE.Mesh(body, material);
     group.add(sphere);
 
-    // Material e geometria para picos
     const spikeMaterial = new THREE.MeshStandardMaterial({ color: 0x222222 });
     const spikeGeometry = new THREE.CylinderGeometry(0.02, 0.01, 0.1);
 
-    // ⚙️ Gerar múltiplos picos ao redor da esfera
-    const spikeCount = 12;
-    for (let i = 0; i < spikeCount; i++) {
+    for (let i = 0; i < 12; i++) {
         const spike = new THREE.Mesh(spikeGeometry, spikeMaterial);
-
-        // Ângulo em volta da esfera
-        const theta = Math.acos(1 - 2 * (i + 0.5) / spikeCount); // [0, π]
-        const phi = Math.PI * (1 + Math.sqrt(5)) * i;            // [0, 2π]
-
-        // Converter para coordenadas cartesianas (direção do pico)
+        const theta = Math.acos(1 - 2 * (i + 0.5) / 12);
+        const phi = Math.PI * (1 + Math.sqrt(5)) * i;
         const dx = Math.sin(theta) * Math.cos(phi);
         const dy = Math.cos(theta);
         const dz = Math.sin(theta) * Math.sin(phi);
-
-        // Rotar o spike para apontar nessa direção
         const dir = new THREE.Vector3(dx, dy, dz);
-        const axis = new THREE.Vector3(0, 1, 0); // cilindro padrão aponta para cima
+        const axis = new THREE.Vector3(0, 1, 0);
         const quaternion = new THREE.Quaternion().setFromUnitVectors(axis, dir.clone().normalize());
         spike.quaternion.copy(quaternion);
-
-        // Mover o spike para fora da esfera
         spike.position.copy(dir.clone().multiplyScalar(0.22));
-
         group.add(spike);
     }
 
@@ -315,22 +373,18 @@ export function createExplosionEffect(position) {
     explosion.position.copy(position);
     scene.add(explosion);
 
-    // Animação: cresce e desvanece
-    const duration = 500; // ms
+    const duration = 500;
     const start = performance.now();
 
     function animateExplosion(time) {
         const t = (time - start) / duration;
-
         if (t >= 1) {
             scene.remove(explosion);
             return;
         }
-
-        const scale = 1 + t * 3; // cresce
+        const scale = 1 + t * 3;
         explosion.scale.set(scale, scale, scale);
-        explosion.material.opacity = 0.8 * (1 - t); // desvanece
-
+        explosion.material.opacity = 0.8 * (1 - t);
         requestAnimationFrame(animateExplosion);
     }
 

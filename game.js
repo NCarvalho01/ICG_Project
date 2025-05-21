@@ -1,23 +1,19 @@
-import { setupScene, create3DGrid, update3DSquare, clearScene, renderScene, getIntersectedSquare, createFlag, createExplosionEffect } from './graphics.js';
+import { setupScene, create3DGrid, update3DSquare, clearScene, renderScene, getIntersectedSquare, createFlagForFace, createExplosionEffect } from './graphics.js';
+import * as THREE from 'three';
 
 let difficulty_presets = {
-    easy: { rows: 9, cols: 9, mines: 10, name: "Easy", width: 220 },
-    intermediate: { rows: 16, cols: 16, mines: 40, name: "Intermediate", width: 375 },
-    expert: { rows: 16, cols: 30, mines: 99, name: "Expert", width: 684 }
+    easy: { size: 5, mines: 15, name: "Easy" },
+    intermediate: { size: 7, mines: 50, name: "Intermediate" },
+    expert: { size: 9, mines: 120, name: "Expert" }
 };
 
 let difficulty = difficulty_presets.easy;
 let playing = true;
 let firstClick = true;
-let unlucky = false;
-let grid = []; 
-let initialClick = null; 
-/* let timerInterval = null;
-let elapsedTime = 0;
- */let timerStart = null;
+let grid3D = [];
+let initialClick = null;
+let timerStart = null;
 let timerActive = false;
-
-
 
 class Square {
     constructor() {
@@ -31,14 +27,18 @@ class Square {
     }
 }
 
-export function countAdjacentMines(x, y) {
+export function countAdjacentMines(i, j, k) {
     let count = 0;
-    for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-            let nx = x + dx, ny = y + dy;
-            if (nx >= 0 && nx < difficulty.rows && ny >= 0 && ny < difficulty.cols) {
-                if (grid[nx][ny].isMine) {
-                    count++;
+    for (let di = -1; di <= 1; di++) {
+        for (let dj = -1; dj <= 1; dj++) {
+            for (let dk = -1; dk <= 1; dk++) {
+                if (di === 0 && dj === 0 && dk === 0) continue;
+                
+                const ni = i + di, nj = j + dj, nk = k + dk;
+                if (ni >= 0 && ni < difficulty.size &&
+                    nj >= 0 && nj < difficulty.size &&
+                    nk >= 0 && nk < difficulty.size) {
+                    if (grid3D[ni][nj][nk].isMine) count++;
                 }
             }
         }
@@ -46,205 +46,244 @@ export function countAdjacentMines(x, y) {
     return count;
 }
 
+function updateAllNeighborMineCounts() {
+    for (let i = 0; i < difficulty.size; i++) {
+        for (let j = 0; j < difficulty.size; j++) {
+            for (let k = 0; k < difficulty.size; k++) {
+                if (!grid3D[i][j][k].isMine) {
+                    grid3D[i][j][k].numNeighborMines = countAdjacentMines(i, j, k);
+                }
+            }
+        }
+    }
+}
+
 document.addEventListener("contextmenu", function(event) {
-    event.preventDefault(); // Evita o menu do botão direito
+    event.preventDefault();
     if (!playing) return;
 
     const intersected = getIntersectedSquare(event);
     if (!intersected) return;
 
-    const square = grid[intersected.x][intersected.y];
+    console.log(`🖱️ Clique DIREITO em (${intersected.i}, ${intersected.j}, ${intersected.k})`);
 
-    // Se já foi revelado, não pode ser marcado
+
+    const square = grid3D[intersected.i][intersected.j][intersected.k];
+
     if (square.isRevealed) return;
 
-    // Alternar estado da bandeira
     square.isFlagged = !square.isFlagged;
+    console.log(`🚩 Bandeira ${square.isFlagged ? 'colocada' : 'removida'} em (${intersected.i}, ${intersected.j}, ${intersected.k})`);
     updateMinesLeft();
 
+    // Remove todas as bandeiras associadas a esse cubo (em múltiplas faces)
+    const toRemove = square.cube.children.filter(child => child.name && child.name.startsWith("flag_"));
+    toRemove.forEach(flag => square.cube.remove(flag));
 
-    // Atualizar cor do cubo
 
     if (square.isFlagged) {
-        const flag = createFlag();
-        flag.name = "flag"; // para identificar depois
-        flag.position.set(0, 0.5, 0); // posição relativa ao cubo
+    const faces = getVisibleFacesForCube(intersected.i, intersected.j, intersected.k);
+    for (const face of faces) {
+        const flag = createFlagForFace(face);
+        flag.name = "flag_" + face;
         square.cube.add(flag);
-
-    } else {
-        // Remove a bandeira se ela existir
-        const existingFlag = square.cube.getObjectByName("flag");
-        if (existingFlag) {
-            square.cube.remove(existingFlag);
-        }
     }
+}
+
 
 });
 
+function getVisibleFacesForCube(i, j, k) {
+    const size = difficulty.size;
+    const faces = [];
+
+    if (k === size - 1) faces.push("front");
+    if (k === 0) faces.push("back");
+    if (i === size - 1) faces.push("right");
+    if (i === 0) faces.push("left");
+    if (j === size - 1) faces.push("top");
+    if (j === 0) faces.push("bottom");
+
+    return faces;
+}
+
+
+
+
 document.addEventListener("mousedown", (event) => {
-    if (event.button !== 0) return; // ⬅️ só botão esquerdo
+    if (event.button !== 0) return;
     if (!playing) return;
     const intersectedSquare = getIntersectedSquare(event);
     if (intersectedSquare) {
-        initialClick = intersectedSquare; // Armazena o primeiro clique
+        initialClick = intersectedSquare;
     }
 });
 
 document.addEventListener("mouseup", (event) => {
-    if (event.button !== 0) return; // ⬅️ só botão esquerdo
+    if (event.button !== 0) return;
     if (!playing || !initialClick) return;
 
     const intersectedSquare = getIntersectedSquare(event);
 
-    if (intersectedSquare && 
-        intersectedSquare.x === initialClick.x && 
-        intersectedSquare.y === initialClick.y) {
-        clickSquare(intersectedSquare.x, intersectedSquare.y);
-    }
+    if (intersectedSquare &&
+    intersectedSquare.i === initialClick.i &&
+    intersectedSquare.j === initialClick.j &&
+    intersectedSquare.k === initialClick.k) {
 
-    initialClick = null; // Reseta a variável após o clique
+    const square = grid3D[intersectedSquare.i][intersectedSquare.j][intersectedSquare.k];
+
+    if (square.isRevealed && square.numNeighborMines > 0) {
+        handleChording(intersectedSquare.i, intersectedSquare.j, intersectedSquare.k);
+    } else {
+        clickSquare(intersectedSquare.i, intersectedSquare.j, intersectedSquare.k, intersectedSquare.face);
+    }
+}
+
+
+    initialClick = null;
 });
 
-export function clickSquare(x, y) {
-    if (!playing) return;
+function handleChording(i, j, k) {
+    const square = grid3D[i][j][k];
+    const size = difficulty.size;
 
-    const square = grid[x][y];
-    // Inicia o cronómetro no primeiro clique real
-    if (firstClick) {
-        placeMinesExcluding(x, y);        // ← Gera minas com zona segura
-        updateAllNeighborMineCounts();    // ← Atualiza os números à volta
-        startTimer();
-        firstClick = false;
-    }
-    
+    let flaggedCount = 0;
 
-
-    // 🔒 Não permite clicar em quadrados marcados
-    if (square.isFlagged) return;
-
-    // ✅ CHORDING: se já está revelado e é um número
-    if (square.isRevealed && square.numNeighborMines > 0) {
-        let flaggedCount = 0;
-
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-                const nx = x + dx, ny = y + dy;
-                if (
-                    nx >= 0 && nx < difficulty.rows &&
-                    ny >= 0 && ny < difficulty.cols
-                ) {
-                    if (grid[nx][ny].isFlagged) flaggedCount++;
+    // Conta bandeiras ao redor
+    for (let di = -1; di <= 1; di++) {
+        for (let dj = -1; dj <= 1; dj++) {
+            for (let dk = -1; dk <= 1; dk++) {
+                if (di === 0 && dj === 0 && dk === 0) continue;
+                const ni = i + di, nj = j + dj, nk = k + dk;
+                if (ni >= 0 && ni < size && nj >= 0 && nj < size && nk >= 0 && nk < size) {
+                    if (grid3D[ni][nj][nk].isFlagged) flaggedCount++;
                 }
             }
         }
+    }
 
-        if (flaggedCount === square.numNeighborMines) {
-            // Revela os vizinhos não marcados
-            for (let dx = -1; dx <= 1; dx++) {
-                for (let dy = -1; dy <= 1; dy++) {
-                    const nx = x + dx, ny = y + dy;
-                    if (
-                        nx >= 0 && nx < difficulty.rows &&
-                        ny >= 0 && ny < difficulty.cols
-                    ) {
-                        const neighbor = grid[nx][ny];
-                        if (!neighbor.isRevealed && !neighbor.isFlagged) {
-                            clickSquare(nx, ny); // chamada recursiva
+    // Se não houver bandeiras suficientes, não faz nada
+    if (flaggedCount !== square.numNeighborMines) return;
+
+    // Revela vizinhos e verifica se houve erro
+    let exploded = false;
+
+    for (let di = -1; di <= 1; di++) {
+        for (let dj = -1; dj <= 1; dj++) {
+            for (let dk = -1; dk <= 1; dk++) {
+                if (di === 0 && dj === 0 && dk === 0) continue;
+                const ni = i + di, nj = j + dj, nk = k + dk;
+                if (ni >= 0 && ni < size && nj >= 0 && nj < size && nk >= 0 && nk < size) {
+                    const neighbor = grid3D[ni][nj][nk];
+                    if (!neighbor.isRevealed && !neighbor.isFlagged) {
+                        if (neighbor.isMine) {
+                            neighbor.wasClicked = true;
+                            neighbor.isRevealed = true;
+                            update3DSquare(neighbor, ni, nj, nk);
+                            if (neighbor.cube) {
+                                const pos = neighbor.cube.getWorldPosition(new THREE.Vector3());
+                                createExplosionEffect(pos);
+                            }
+                            exploded = true;
+                        } else {
+                            clickSquare(ni, nj, nk);
                         }
                     }
                 }
             }
         }
-
-        return;
     }
 
-    // Se já está revelado (e não era chording válido), ignora
-    if (square.isRevealed) return;
+    if (exploded) {
+        revealAllMines();
+        document.getElementById("restartMessage").textContent = "💥 Explosão por chording!";
+        document.getElementById("restartContainer").style.display = "block";
+        playing = false;
+        stopTimer();
+    }
+}
+
+
+export function clickSquare(i, j, k, face = 'front') {
+    if (!playing) return;
+
+    console.log(`🖱️ Clique ESQUERDO em (${i}, ${j}, ${k})`);
+
+    const square = grid3D[i][j][k];
+    
+    if (firstClick) {
+        placeMinesExcluding(i, j, k);
+        updateAllNeighborMineCounts();
+        startTimer();grid3D
+        firstClick = false;
+    }
+
+    if (square.isRevealed || square.isFlagged) return;
 
     if (square.isMine) {
+        console.log(`💥 Clicou numa mina em (${i}, ${j}, ${k})`);
         square.isRevealed = true;
         square.wasClicked = true;
-        update3DSquare(square, x, y);
-    
-       /*  const pos = square.cube.getWorldPosition(new THREE.Vector3());
-        createExplosionEffect(pos); */
-    
-        revealAllMines(); // 👈 mostra todas as outras minas
-    
-        const restartMessage = document.getElementById("restartMessage");
-        const restartButton = document.getElementById("restartButton");
-    
-        restartMessage.textContent = "💥 Mine Exploded!";
-        restartMessage.style.color = "#FF4444";
-        restartButton.style.backgroundColor = "#cc0000";
-        restartButton.style.color = "#ffffff";
+        update3DSquare(grid3D[i][j][k], i, j, k, face);
+        
+        if (square.cube) {
+            const pos = square.cube.getWorldPosition(new THREE.Vector3());
+            createExplosionEffect(pos);
+        }
+
+        
+        revealAllMines();
+        
+        document.getElementById("restartMessage").textContent = "💥 Mine Exploded!";
         document.getElementById("restartContainer").style.display = "block";
-    
+        
         playing = false;
         stopTimer();
         return;
     }
     
-    // ⚡ Se não há minas ao redor, inicia o flood fill
+    square.isRevealed = true;
+    update3DSquare(grid3D[i][j][k], i, j, k);
+
     if (square.numNeighborMines === 0) {
-        revealAdjacentSquares(x, y);
-    } else {
-        square.isRevealed = true;
-        update3DSquare(square, x, y);
+        revealAdjacentSquares(i, j, k);
     }
 
     checkWinCondition();
 }
 
-function revealAdjacentSquares(startX, startY) {
-    const queue = [{ x: startX, y: startY }];
+function revealAdjacentSquares(i, j, k) {
+    const queue = [{i, j, k}];
     const visited = new Set();
+    const size = difficulty.size;
 
     while (queue.length > 0) {
-        const { x, y } = queue.shift();
-        const key = `${x},${y}`;
+        const {i, j, k} = queue.shift();
+        const key = `${i},${j},${k}`;
 
         if (visited.has(key)) continue;
         visited.add(key);
 
-        console.log(`🔍 Revelando quadrado: (${x}, ${y})`);
+        const square = grid3D[i][j][k];
 
-        const square = grid[x][y];
+        if (square.isMine || square.isFlagged) continue;
 
-        if (square.isRevealed) continue;
         square.isRevealed = true;
-        update3DSquare(square, x, y);
+        update3DSquare(grid3D[i][j][k], i, j, k);
 
-        // Se estava com bandeira, remove
-        if (square.isFlagged) {
-            square.isFlagged = false;
-
-            const flagMesh = square.cube.getObjectByName("flag");
-            if (flagMesh) {
-                square.cube.remove(flagMesh);
-            }
-
-            updateMinesLeft();
-        }
-
-
-        // Se há minas vizinhas, pare o flood fill para este quadrado
         if (square.numNeighborMines > 0) continue;
 
-        // Expande para os vizinhos que ainda não foram processados
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
-                const nx = x + dx, ny = y + dy;
-                const neighborKey = `${nx},${ny}`;
-
-                if (
-                    nx >= 0 && nx < difficulty.rows &&
-                    ny >= 0 && ny < difficulty.cols &&
-                    !visited.has(neighborKey) &&
-                    !grid[nx][ny].isMine // ⚠️ Não adiciona minas na propagação
-                ) {
-                    queue.push({ x: nx, y: ny });
+        for (let di = -1; di <= 1; di++) {
+            for (let dj = -1; dj <= 1; dj++) {
+                for (let dk = -1; dk <= 1; dk++) {
+                    if (di === 0 && dj === 0 && dk === 0) continue;
+                    
+                    const ni = i + di, nj = j + dj, nk = k + dk;
+                    if (ni >= 0 && ni < size &&
+                        nj >= 0 && nj < size &&
+                        nk >= 0 && nk < size) {
+                        queue.push({i: ni, j: nj, k: nk});
+                    }
                 }
             }
         }
@@ -260,21 +299,19 @@ function checkWinCondition() {
     let safeSquares = 0;
     let revealedSquares = 0;
 
-    for (let i = 0; i < difficulty.rows; i++) {
-        for (let j = 0; j < difficulty.cols; j++) {
-            if (!grid[i][j].isMine) safeSquares++;
-            if (grid[i][j].isRevealed) revealedSquares++;
+    for (let i = 0; i < difficulty.size; i++) {
+        for (let j = 0; j < difficulty.size; j++) {
+            for (let k = 0; k < difficulty.size; k++) {
+                if (!grid3D[i][j][k].isMine) safeSquares++;
+                if (grid3D[i][j][k].isRevealed) revealedSquares++;
+            }
         }
     }
 
-    const restartMessage = document.getElementById("restartMessage");
-    const restartButton = document.getElementById("restartButton");
-
     if (safeSquares === revealedSquares) {
-        restartMessage.textContent = "🎉 Congratulations! You won!";
-        restartMessage.style.color = "#00FF00"; // Verde ao ganhar
-        restartButton.style.backgroundColor = "#00cc00"; // Verde para o botão ao ganhar
-        restartButton.style.color = "#ffffff";
+        document.getElementById("restartMessage").textContent = "🎉 Congratulations! You won!";
+        document.getElementById("restartMessage").style.color = "#00FF00";
+        document.getElementById("restartButton").style.backgroundColor = "#00cc00";
         document.getElementById("restartContainer").style.display = "block";
         playing = false;
         if (timerStart) {
@@ -282,113 +319,94 @@ function checkWinCondition() {
             updateHighScoreIfNeeded(currentTime);
         }        
         stopTimer();
-
     }
 }
 
 function restartGame() {
-    console.log("🔄 Reiniciando jogo...");
     playing = true;
     firstClick = true;
 
-    clearScene(); // Limpa a cena antes de reiniciar
-
+    clearScene();
     stopTimer();
     displayHighScore();
-    const timeSpan = document.getElementById("timeValue");
-    if (timeSpan) timeSpan.textContent = "0.0s";
-
-    const minesSpan = document.getElementById("minesValue");
-    if (minesSpan) minesSpan.textContent = difficulty.mines;
     
+    document.getElementById("timeValue").textContent = "0.0s";
+    document.getElementById("minesValue").textContent = difficulty.mines;
     
     createGrid();
-/*     placeMines();
-    updateAllNeighborMineCounts();
- */    debugMineCounts();
-
-    create3DGrid(grid, difficulty);
-    setupScene(grid, difficulty);
+    create3DGrid(grid3D, difficulty);
+    setupScene(grid3D, difficulty);
     renderScene();
 }
 
-function placeMinesExcluding(safeX, safeY) {
+function placeMinesExcluding(safeI, safeJ, safeK) {
     let placed = 0;
-    const forbidden = new Set();
+    const safeZone = new Set();
 
-    for (let dx = -1; dx <= 1; dx++) {
-        for (let dy = -1; dy <= 1; dy++) {
-            const nx = safeX + dx;
-            const ny = safeY + dy;
-
-            if (
-                nx >= 0 && nx < difficulty.rows &&
-                ny >= 0 && ny < difficulty.cols
-            ) {
-                forbidden.add(`${nx},${ny}`);
+    // Define zona segura em torno do primeiro clique
+    for (let di = -1; di <= 1; di++) {
+        for (let dj = -1; dj <= 1; dj++) {
+            for (let dk = -1; dk <= 1; dk++) {
+                const ni = safeI + di, nj = safeJ + dj, nk = safeK + dk;
+                if (ni >= 0 && ni < difficulty.size &&
+                    nj >= 0 && nj < difficulty.size &&
+                    nk >= 0 && nk < difficulty.size) {
+                    safeZone.add(`${ni},${nj},${nk}`);
+                }
             }
         }
+    }
+
+    const size = difficulty.size;
+
+    // Função auxiliar: está na "casca"?
+    function isOnOuterShell(i, j, k) {
+        return (
+            i === 0 || i === size - 1 ||
+            j === 0 || j === size - 1 ||
+            k === 0 || k === size - 1
+        );
     }
 
     while (placed < difficulty.mines) {
-        const x = Math.floor(Math.random() * difficulty.rows);
-        const y = Math.floor(Math.random() * difficulty.cols);
+        const i = Math.floor(Math.random() * size);
+        const j = Math.floor(Math.random() * size);
+        const k = Math.floor(Math.random() * size);
 
-        if (grid[x][y].isMine || grid[x][y].isFlagged) continue;
-        if (forbidden.has(`${x},${y}`)) continue;
+        const square = grid3D[i][j][k];
 
-
-        grid[x][y].isMine = true;
-        placed++;
+        if (
+            isOnOuterShell(i, j, k) &&        // ✅ está na superfície
+            !square.isMine &&                 // ainda não tem mina
+            !safeZone.has(`${i},${j},${k}`)   // não é zona segura
+        ) {
+            square.isMine = true;
+            placed++;
+        }
     }
 
-    console.log(`Minas colocadas (seguro): ${placed}/${difficulty.mines}`);
-}
-    
-function updateAllNeighborMineCounts() {
-    for (let i = 0; i < difficulty.rows; i++) {
-        for (let j = 0; j < difficulty.cols; j++) {
-            if (!grid[i][j].isMine) {
-                grid[i][j].numNeighborMines = countAdjacentMines(i, j);
+    console.log(`Minas colocadas nas faces visíveis (excluindo zona segura em torno de ${safeI},${safeJ},${safeK}):`);
+    for (let i = 0; i < size; i++) {
+        for (let j = 0; j < size; j++) {
+            for (let k = 0; k < size; k++) {
+                if (grid3D[i][j][k].isMine) {
+                    console.log(`- Mina em: (${i}, ${j}, ${k})`);
+                }
             }
         }
     }
 }
 
-function debugMineCounts() {
-    console.log("📌 Verificando `numNeighborMines`...");
-    for (let i = 0; i < difficulty.rows; i++) {
-        let row = "";
-        for (let j = 0; j < difficulty.cols; j++) {
-            row += `${grid[i][j].numNeighborMines} `;
-        }
-        console.log(row);
-    }
-}
-
-function createGrid() {
-    grid = [];
-    for (let i = 0; i < difficulty.rows; i++) {
-        grid[i] = [];
-        for (let j = 0; j < difficulty.cols; j++) {
-            grid[i][j] = new Square();
-        }
-    }
-    create3DGrid(grid, difficulty);
-}
-
-updateMinesLeft();
-
 
 function startGame() {
+    createGrid();
     restartGame();
+    updateMinesLeft();
 }
 
 document.getElementById("difficultySelect").addEventListener("change", function() {
     const selectedDifficulty = document.getElementById("difficultySelect").value;
     difficulty = difficulty_presets[selectedDifficulty];
-
-    console.log(`Dificuldade alterada para: ${difficulty.name}`);
     restartGame();
 });
 
@@ -400,11 +418,7 @@ function animateTimer(timestamp) {
     const elapsed = (timestamp - timerStart) / 1000;
     const display = elapsed.toFixed(1);
 
-    const timeSpan = document.getElementById("timeValue");
-    if (timeSpan) {
-        timeSpan.textContent = `${display}s`;
-    }
-
+    document.getElementById("timeValue").textContent = `${display}s`;
     requestAnimationFrame(animateTimer);
 }
 
@@ -419,7 +433,7 @@ function stopTimer() {
 }
 
 function getHighScoreKey() {
-    return `bestTime_${difficulty.name}`; // ex: bestTime_Easy
+    return `bestTime_${difficulty.name}`;
 }
 
 function updateHighScoreIfNeeded(currentTime) {
@@ -433,40 +447,45 @@ function updateHighScoreIfNeeded(currentTime) {
 function displayHighScore() {
     const key = getHighScoreKey();
     const best = sessionStorage.getItem(key);
-    const bestSpan = document.getElementById("bestValue");
-    if (bestSpan) {
-        bestSpan.textContent = best ? `${best}s` : "--";
-    }
-
-    const timeSpan = document.getElementById("timeValue");
-    if (timeSpan) {
-        timeSpan.textContent = "0.0s";
-    }
+    document.getElementById("bestValue").textContent = best ? `${best}s` : "--";
 }
 
 function updateMinesLeft() {
-    const flaggedCount = grid.flat().filter(sq => sq.isFlagged).length;
-    const totalMines = difficulty.mines;
-    const remaining = Math.max(0, totalMines - flaggedCount);
+    let flaggedCount = 0;
 
-    const minesSpan = document.getElementById("minesValue");
-    if (minesSpan) {
-        minesSpan.textContent = remaining;
+    for (let i = 0; i < difficulty.size; i++) {
+        for (let j = 0; j < difficulty.size; j++) {
+            for (let k = 0; k < difficulty.size; k++) {
+                if (grid3D[i][j][k].isFlagged) {
+                    flaggedCount++;
+                }
+            }
+        }
     }
+
+    document.getElementById("minesValue").textContent = Math.max(0, difficulty.mines - flaggedCount);
+}
+
+function createGrid() {
+    const size = difficulty.size;
+    grid3D = Array(size).fill().map(() => 
+        Array(size).fill().map(() => 
+            Array(size).fill().map(() => new Square())
+        ));
 }
 
 function revealAllMines() {
-    for (let x = 0; x < difficulty.rows; x++) {
-        for (let y = 0; y < difficulty.cols; y++) {
-            const square = grid[x][y];
-            if (square.isMine && !square.isRevealed && !square.isFlagged) {
-                square.isRevealed = true;
-                update3DSquare(square, x, y);
+    for (let i = 0; i < difficulty.size; i++) {
+        for (let j = 0; j < difficulty.size; j++) {
+            for (let k = 0; k < difficulty.size; k++) {
+                const square = grid3D[i][j][k];
+                if (square.isMine && !square.isRevealed && !square.isFlagged) {
+                    square.isRevealed = true;
+                    update3DSquare(grid3D[i][j][k], i, j, k);
+                }
             }
         }
     }
 }
 
-
 startGame();
-setupScene(grid, difficulty);
