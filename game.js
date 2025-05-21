@@ -392,7 +392,7 @@ function restartGame() {
     
     document.getElementById("timeValue").textContent = "0.0s";
     document.getElementById("minesValue").textContent = difficulty.mines;
-    
+    document.getElementById("restartContainer").style.display = "none";
     createGrid();
     create3DGrid(grid3D, difficulty);
     setupScene(grid3D, difficulty);
