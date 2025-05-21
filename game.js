@@ -151,7 +151,6 @@ function handleChording(i, j, k) {
 
     let flaggedCount = 0;
 
-    // Conta bandeiras ao redor
     for (let di = -1; di <= 1; di++) {
         for (let dj = -1; dj <= 1; dj++) {
             for (let dk = -1; dk <= 1; dk++) {
@@ -164,10 +163,8 @@ function handleChording(i, j, k) {
         }
     }
 
-    // Se não houver bandeiras suficientes, não faz nada
     if (flaggedCount !== square.numNeighborMines) return;
 
-    // Revela vizinhos e verifica se houve erro
     let exploded = false;
 
     for (let di = -1; di <= 1; di++) {
@@ -302,40 +299,30 @@ function revealAdjacentSquares(i, j, k) {
 
         const currentSquare = grid3D[i][j][k];
 
-        // Se for uma mina ou já tiver bandeira, não revela nem propaga
         if (currentSquare.isMine || currentSquare.isFlagged) {
             continue;
         }
 
-        // Se já foi revelado, e é um número, para a propagação.
-        // Se for um 0 e já revelado, a propagação pode continuar, mas a revelação visual já ocorreu.
         if (currentSquare.isRevealed) {
             if (currentSquare.numNeighborMines > 0) {
                 continue; 
             }
-        } else { // Se não foi revelado ainda, marca como revelado
+        } else { 
             currentSquare.isRevealed = true;
         }
         
-        // Apenas atualiza o modelo 3D se estiver na casca exterior
         if (isOnOuterShell(i, j, k, size)) {
             update3DSquare(currentSquare, i, j, k);
         } else {
-            // Se o cubo atual é interior, e tem número, ele não deve propagar.
-            // Se for um 0 interior, ele marca-se como revelado, mas não visualmente.
-            // A propagação só vai continuar se os seus vizinhos forem exteriores.
             if (currentSquare.numNeighborMines > 0) {
                 continue;
             }
         }
         
-        // Se o cubo atual tem minas vizinhas (é um número), a propagação para aqui.
-        // Ele próprio foi revelado (se na casca), mas não vai revelar os seus vizinhos.
         if (currentSquare.numNeighborMines > 0) {
             continue;
         }
 
-        // Se o cubo atual é um 0 (sem minas vizinhas), propaga para os seus vizinhos
         for (let di = -1; di <= 1; di++) {
             for (let dj = -1; dj <= 1; dj++) {
                 for (let dk = -1; dk <= 1; dk++) {
@@ -347,10 +334,6 @@ function revealAdjacentSquares(i, j, k) {
                         nk >= 0 && nk < size) {
                         const neighbor = grid3D[ni][nj][nk];
 
-                        // *** ALTERAÇÃO CHAVE AQUI: Simplificar a condição de adição à fila ***
-                        // Adiciona o vizinho à fila APENAS se:
-                        // 1. Não estiver revelado e não tiver bandeira.
-                        // 2. Estiver na CASCA EXTERIOR. (Removemos a condição de "ponte" interior)
                         if (!neighbor.isRevealed && !neighbor.isFlagged && isOnOuterShell(ni, nj, nk, size)) {
                             queue.push({i: ni, j: nj, k: nk});
                         }

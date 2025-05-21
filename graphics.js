@@ -79,7 +79,6 @@ export function setupScene(grid, difficulty) {
     controls.update();
 
 
-    // Adiciona plano de relva abaixo da grelha
     const groundSize = 1000;
     const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize, 1, 1);
 
@@ -87,7 +86,7 @@ export function setupScene(grid, difficulty) {
 
     const colorMap = textureLoader.load('textures/brown_mud_leaves_01_diff_1k.jpg');
     colorMap.wrapS = colorMap.wrapT = THREE.RepeatWrapping;
-    colorMap.repeat.set(20, 20); // Repete bastante para parecer natural
+    colorMap.repeat.set(20, 20); 
 
     const normalMap = textureLoader.load('textures/brown_mud_leaves_01_disp_1k.png');
     normalMap.wrapS = normalMap.wrapT = THREE.RepeatWrapping;
@@ -128,10 +127,8 @@ export function getIntersectedSquare(event) {
     for (const hit of intersects) {
         let object = hit.object;
 
-        // ⛔ Ignorar objetos marcados como plano de fundo
         if (object.userData?.isBackground) continue;
 
-        // ⛏️ Subir até encontrar o cubo principal (com userData.isCube)
         while (object && !object.userData?.isCube && object.parent) {
             object = object.parent;
         }
@@ -227,7 +224,7 @@ export function create3DGrid(grid, difficulty) {
                     const material = new THREE.MeshLambertMaterial({
                         color: 0xaaaaaa,
                         transparent: true,
-                        opacity: 1 // ou qualquer valor entre 0 e 1 conforme o efeito desejado
+                        opacity: 1 
                     });
                     const cube = new THREE.Mesh(geometry, material);
                     cube.userData.isCube = true;
@@ -243,11 +240,9 @@ export function create3DGrid(grid, difficulty) {
 export function update3DSquare(square, i, j, k, clickedFace = null) {
     if (!square.cube) return;
 
-    // Remover todas as minas existentes antes de adicionar novas
     const oldMines = square.cube.children.filter(child => child.name && child.name.startsWith("mineModel_"));
     oldMines.forEach(mine => square.cube.remove(mine));
     
-    // Remover todos os números existentes
     const oldNumbers = square.cube.children.filter(child => child.name && child.name.startsWith("numberModel_"));
     oldNumbers.forEach(number => square.cube.remove(number));
 
@@ -256,8 +251,6 @@ export function update3DSquare(square, i, j, k, clickedFace = null) {
         if (square.isMine) {
             square.cube.material.color.set(0xff0000); // Cor de mina revelada
             
-            // Lógica para determinar as faces visíveis (duplicada de game.js para autonomia)
-            // É importante que gameDifficulty esteja acessível aqui (exportada e atribuída).
             const size = gameDifficulty.size; 
             const visibleFaces = [];
             if (k === size - 1) visibleFaces.push("front");
@@ -267,11 +260,7 @@ export function update3DSquare(square, i, j, k, clickedFace = null) {
             if (j === size - 1) visibleFaces.push("top");
             if (j === 0) visibleFaces.push("bottom");
 
-            // *** ALTERAÇÃO CHAVE AQUI: ***
-            // Agora, para TODAS as minas reveladas (clicadas ou não),
-            // adiciona-se uma mina em CADA FACE VISÍVEL.
             for (const face of visibleFaces) {
-                // A mina clicada (square.wasClicked) terá a sua cor especial
                 const mine = createMineMesh(square.wasClicked); 
                 mine.name = `mineModel_${face}`;
                 positionObjectOverFace(mine, face);
@@ -287,7 +276,6 @@ export function update3DSquare(square, i, j, k, clickedFace = null) {
             });
             const numberGeometry = new THREE.PlaneGeometry(0.8, 0.8);
             
-            // Faces para posicionar os números (já estavam a aparecer em todas as faces, manter)
             const faces = [
                 { name: 'front', position: [0, 0, 0.51], rotation: [0, 0, 0] },
                 { name: 'back', position: [0, 0, -0.51], rotation: [0, Math.PI, 0] },
@@ -301,20 +289,18 @@ export function update3DSquare(square, i, j, k, clickedFace = null) {
                 const number = new THREE.Mesh(numberGeometry, numberMaterial.clone());
                 number.name = `numberModel_${face.name}`;
                 number.position.set(...face.position);
-                number.rotation.set(...face.rotation); // Mantém rotação para os números
+                number.rotation.set(...face.rotation); 
                 square.cube.add(number);
             }
 
         } else {
-            // ✅ Cubo revelado, sem mina e sem minas ao redor
-            square.cube.material.color.set(0x00aa00); // verde
+            square.cube.material.color.set(0x00aa00); 
         }
     }
 }
 
-// Nova função para posicionar objetos sobre a face
 function positionObjectOverFace(object, face) {
-    const offset = 0.8; // Um pouco mais que o raio do cubo para pairar sobre a face
+    const offset = 0.8; 
 
     switch (face) {
         case 'front': // Z+
@@ -336,7 +322,7 @@ function positionObjectOverFace(object, face) {
             object.position.set(0, -offset, 0);
             break;
         default:
-            object.position.set(0, 0, offset); // Padrão para 'front'
+            object.position.set(0, 0, offset); 
             break;
     }
 }
@@ -405,41 +391,35 @@ export function createFlag() {
 }
 
 export function createFlagForFace(face) {
-    const flag = createFlag(); // o modelo base
+    const flag = createFlag(); 
     const offset = 0.51;
 
     switch (face) {
-            // DONE
         case 'front': // Z+
             flag.position.set(0, 0, offset);
             flag.rotation.set(Math.PI/2, 0, 0);
             break;
 
-            //DONE
         case 'back': // Z-
             flag.position.set(0, 0, -offset);
             flag.rotation.set(-Math.PI/2, 0, 0);
             break;
 
-            // DONE
         case 'right': // X+
             flag.position.set(offset, 0, 0);
             flag.rotation.set(0, 0, -Math.PI/2);
             break;
 
-            // DONE
         case 'left': // X-
             flag.position.set(-offset, 0, 0);
             flag.rotation.set(0, 0, Math.PI/2);
             break;
 
-            // DONE
         case 'top': // Y+
             flag.position.set(0, offset, 0);
             flag.rotation.set(0, 0, 0);
             break;
 
-            //DONE
         case 'bottom': // Y-
             flag.position.set(0, -offset, 0);
             flag.rotation.set(Math.PI, 0, 0);
