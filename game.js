@@ -15,6 +15,7 @@ let initialClick = null;
 let timerStart = null;
 let timerActive = false;
 let animationFrameId = null; 
+const mode = "3d";
 
 class Square {
     constructor() {
@@ -490,8 +491,9 @@ function stopTimer() {
 }
 
 function getHighScoreKey() {
-    return `bestTime_${difficulty.name}`;
+    return `bestTime_${mode}_${difficulty.name}`;
 }
+
 
 function updateHighScoreIfNeeded(currentTime) {
     const key = getHighScoreKey();
