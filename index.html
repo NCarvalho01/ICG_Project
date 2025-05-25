@@ -97,7 +97,6 @@
 </head>
 
 <body>
-    <!-- 🔘 Interface de dificuldade -->
     <div id="difficultyContainer">
         <label for="difficultySelect">Difficulty:</label>
         <select id="difficultySelect">
@@ -116,42 +115,38 @@
     </div>
 
 
-    <!-- 🕒 Temporizador -->
     <div id="timer">
         ⏱️ Time: <span id="timeValue">0.0s</span><br>
         💣 Mines Left: <span id="minesValue">--</span><br>
         🏆 Best: <span id="bestValue">--</span>
     </div>
 
-    <!-- 🔁 Mensagem de reinício -->
     <div id="restartContainer">
         <p id="restartMessage">Mine exploded! You lost</p>
         <button id="restartButton">Restart</button>
     </div>
 
-    <!-- 🌍 Onde o WebGL será renderizado -->
     <div id="WebGL-output"></div>
 
-    <!-- 🧠 Código principal do jogo -->
     <script type="module">
         let currentMode = '3d';
         let currentGameModule = null;
         let gameInstance = null;
 
         async function loadMode(mode) {
-            // Limpar completamente o módulo anterior
+
+            document.getElementById("restartContainer").style.display = "none";
+
             if (gameInstance && gameInstance.cleanup) {
                 gameInstance.cleanup();
                 gameInstance = null;
             }
             
-            // Limpar o container WebGL
             const webglOutput = document.getElementById("WebGL-output");
             while (webglOutput.firstChild) {
                 webglOutput.removeChild(webglOutput.firstChild);
             }
 
-            // Carregar o novo módulo
             try {
                 if (mode === '3d') {
                     currentGameModule = await import('./game.js');
@@ -159,13 +154,11 @@
                     currentGameModule = await import('./game2D.js');
                 }
                 
-                // Inicializar o novo jogo
                 gameInstance = currentGameModule;
                 currentMode = mode;
                 
             } catch (error) {
                 console.error("Error loading game mode:", error);
-                // Recarregar o modo anterior em caso de erro
                 loadMode(currentMode);
             }
             if (gameInstance.initGame) {
@@ -180,7 +173,6 @@
             }
         });
 
-        // Carregar o modo inicial
         loadMode(currentMode);
     </script>
 

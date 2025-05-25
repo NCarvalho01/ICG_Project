@@ -449,6 +449,9 @@ function startGame() {
 function onDifficultyChange() {
     const selectedDifficulty = document.getElementById("difficultySelect").value;
     difficulty = difficulty_presets[selectedDifficulty];
+
+    document.getElementById("restartContainer").style.display = "none";
+
     restartGame();
 }
 

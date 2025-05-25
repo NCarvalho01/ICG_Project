@@ -39,8 +39,18 @@ function onRightClick(event) {
     if (square.isFlagged) {
         const flag = createFlag();
         flag.name = "flag";
-        flag.position.set(0, 0.5, 0);
-        square.cube.add(flag);
+        // Topo
+        const flagTop = createFlag();
+        flagTop.name = "flag_top";
+        flagTop.position.set(0, 0.5, 0);
+        square.cube.add(flagTop);
+
+        // Fundo
+        const flagBottom = createFlag();
+        flagBottom.name = "flag_bottom";
+        flagBottom.position.set(0, -0.5, 0);
+        flagBottom.rotation.x = Math.PI; // Inverter
+        square.cube.add(flagBottom);
     } else {
         const existingFlag = square.cube.getObjectByName("flag");
         if (existingFlag) square.cube.remove(existingFlag);
@@ -84,6 +94,9 @@ document.getElementById("difficultySelect").addEventListener("change", onDifficu
 function onDifficultyChange() {
     const selectedDifficulty = document.getElementById("difficultySelect").value;
     difficulty = difficulty_presets[selectedDifficulty];
+
+    document.getElementById("restartContainer").style.display = "none";
+
     restartGame();
 }
 
