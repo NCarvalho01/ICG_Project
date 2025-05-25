@@ -5,38 +5,42 @@ import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.139.2/examples/jsm
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 import { TextureLoader } from 'three';
 
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x224422);
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 20, 0);
-camera.lookAt(0, 0, 0);
+let scene, camera, renderer, controls;
+let textureLoader = new TextureLoader();
+export function initRenderer() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x224422);
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 20, 0);
+    camera.lookAt(0, 0, 0);
 
-const rgbeLoader = new RGBELoader();
-const textureLoader = new TextureLoader();
+    const rgbeLoader = new RGBELoader();
 
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.4;
-document.getElementById("WebGL-output").appendChild(renderer.domElement);
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.4;
+    document.getElementById("WebGL-output").appendChild(renderer.domElement);
 
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
 
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-scene.add(ambientLight);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+    scene.add(ambientLight);
 
-const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
-directionalLight.position.set(10, 20, 10);
-directionalLight.castShadow = true;
-scene.add(directionalLight);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
+    directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
 
-rgbeLoader.load('textures/industrial_sunset_02_puresky_1k.hdr', function(texture) {
+
+    rgbeLoader.load('textures/industrial_sunset_02_puresky_1k.hdr', function(texture) {
     texture.mapping = THREE.EquirectangularReflectionMapping;
     scene.environment = texture;
     scene.background = texture;
-});
+    });
+}
 
 function setupGround() {
     const groundSize = 1000;

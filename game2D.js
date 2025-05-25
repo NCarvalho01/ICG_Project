@@ -1,4 +1,4 @@
-import { setupScene, create3DGrid, update3DSquare, clearScene, renderScene, getIntersectedSquare, createFlag, createExplosionEffect } from './graphics2D.js';
+import { setupScene, create3DGrid, update3DSquare, clearScene, renderScene, getIntersectedSquare, createFlag, createExplosionEffect, initRenderer } from './graphics2D.js';
 
 let difficulty_presets = {
     easy: { rows: 9, cols: 9, mines: 10, name: "Easy", width: 220 },
@@ -26,6 +26,15 @@ class Square {
         this.cube = null;
     }
 }
+
+function registerEventListeners() {
+    document.addEventListener("contextmenu", onRightClick);
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mouseup", onMouseUp);
+    document.getElementById("restartButton").addEventListener("click", onRestartClick);
+    document.getElementById("difficultySelect").addEventListener("change", onDifficultyChange);
+}
+
 
 function onRightClick(event) {
     event.preventDefault();
@@ -351,26 +360,27 @@ function displayHighScore() {
 }
 
 export function cleanup() {
+    // Remove listeners
     document.removeEventListener("contextmenu", onRightClick);
     document.removeEventListener("mousedown", onMouseDown);
     document.removeEventListener("mouseup", onMouseUp);
     document.getElementById("restartButton").removeEventListener("click", onRestartClick);
     document.getElementById("difficultySelect").removeEventListener("change", onDifficultyChange);
 
+    // Para o timer
     timerActive = false;
+    if (animationFrameId) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
 
+    // Limpeza mais completa
     clearScene();
-
-    const canvas = document.querySelector("#WebGL-output canvas");
-    if (canvas) canvas.remove();
 }
 
 export function initGame() {
-    restartGame();
-    setupScene(grid, difficulty);
-    renderScene();
+    initRenderer();
+    registerEventListeners();
+    startGame();
 }
 
-startGame();
-setupScene(grid, difficulty);
-renderScene();

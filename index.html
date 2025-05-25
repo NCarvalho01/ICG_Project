@@ -77,6 +77,70 @@
         #restartButton:hover {
             background-color: #cc0000;
         }
+
+        #tutorialButtonContainer {
+            position: absolute;
+            bottom: 20px;
+            left: 10px;
+        }
+
+        #tutorialButton {
+            font-size: 16px;
+            padding: 8px 12px;
+            background-color: #3b773ddc;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-family: 'Poppins', sans-serif;
+            cursor: pointer;
+        }
+
+        #tutorialButton:hover {
+            background-color: #426030;
+        }
+
+        #tutorialModal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.193);
+        }
+
+        #tutorialContent {
+            background-color: #b0b0b0;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 90%;
+            max-width: 500px;
+            font-family: 'Poppins', sans-serif;
+            color: #333;
+            position: relative;
+        }
+
+        #tutorialContent h2, #tutorialContent h3 {
+            margin-top: 0;
+        }
+
+        #closeTutorial {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        #closeTutorial:hover {
+            color: black;
+        }
+
     </style>
 
     <!-- Font -->
@@ -109,9 +173,33 @@
     <div id="modeContainer">
         <label for="modeSelect">Mode:</label>
         <select id="modeSelect">
-            <option value="3d">3D</option>
             <option value="2d">2D</option>
+            <option value="3d">3D</option>
         </select>
+    </div>
+
+    <div id="tutorialButtonContainer">
+        <button id="tutorialButton">❓ Tutorial</button>
+    </div>
+
+    <div id="tutorialModal">
+        <div id="tutorialContent">
+            <span id="closeTutorial">&times;</span>
+            <h2>Como Jogar Minesweeper</h2>
+            <p>
+                - Clica com o botão esquerdo para revelar quadrados.<br>
+                - Clica com o botão direito para colocar uma bandeira (que sinaliza uma mina sem a rebentar).<br>
+                - Os números indicam quantas minas estão nas casas adjacentes.<br>
+                - Evita clicar numa mina... ou <strong>BOOM 💥</strong>!<br>
+                - Vence se revelares todos os quadrados seguros.
+            </p>
+            <h3>🧊 Modo 3D</h3>
+            <p>
+                - O campo é um <strong>cubo</strong> com minas apenas nas <strong>faces exteriores</strong>.<br>
+                - Roda o cubo com o rato para ver todas as faces.<br>
+                - Neste modo, as casas adjacentes incluem casas em faces diferentes do cubo. Atenção às diagonais!
+            </p>
+        </div>
     </div>
 
 
@@ -134,37 +222,57 @@
         let gameInstance = null;
 
         async function loadMode(mode) {
+            if (mode === currentMode) return;
 
-            document.getElementById("restartContainer").style.display = "none";
+            console.log(`Loading ${mode.toUpperCase()} mode...`);
 
-            if (gameInstance && gameInstance.cleanup) {
-                gameInstance.cleanup();
-                gameInstance = null;
+            // Limpeza completa
+            if (gameInstance?.cleanup) {
+                try {
+                    gameInstance.cleanup();
+                } catch (e) {
+                    console.error("Cleanup error:", e);
+                }
             }
-            
+
+            // Remove qualquer elemento residual
             const webglOutput = document.getElementById("WebGL-output");
             while (webglOutput.firstChild) {
                 webglOutput.removeChild(webglOutput.firstChild);
             }
 
+            // Força coleta de lixo (opcional)
+            if (window.gc) window.gc();
+
             try {
-                if (mode === '3d') {
-                    currentGameModule = await import('./game.js');
-                } else if (mode === '2d') {
-                    currentGameModule = await import('./game2D.js');
-                }
+                // Carrega dinamicamente o módulo correto
+                const module = await import(mode === '3d' ? './game.js' : './game2D.js');
                 
-                gameInstance = currentGameModule;
+                // Atualiza referências
+                currentGameModule = module;
+                gameInstance = module;
                 currentMode = mode;
-                
+
+                // Delay pequeno para garantir limpeza completa
+                await new Promise(resolve => setTimeout(resolve, 50));
+
+                // Inicialização segura
+                if (module.initGame) {
+                    module.initGame();
+                } else {
+                    console.error("initGame() not found");
+                }
             } catch (error) {
-                console.error("Error loading game mode:", error);
-                loadMode(currentMode);
-            }
-            if (gameInstance.initGame) {
-                gameInstance.initGame();
+                console.error("Mode loading failed:", error);
+                // Fallback para o modo atual
+                loadMode(currentMode).catch(console.error);
             }
         }
+
+        // Inicia no modo 2D
+        window.addEventListener('load', () => {
+            loadMode('2d').catch(console.error);
+        });
 
         document.getElementById("modeSelect").addEventListener("change", (e) => {
             const selected = e.target.value;
@@ -172,6 +280,21 @@
                 loadMode(selected);
             }
         });
+
+        // Mostrar / esconder tutorial
+        document.getElementById("tutorialButton").addEventListener("click", () => {
+            document.getElementById("tutorialModal").style.display = "block";
+        });
+        document.getElementById("closeTutorial").addEventListener("click", () => {
+            document.getElementById("tutorialModal").style.display = "none";
+        });
+        window.addEventListener("click", (event) => {
+            const modal = document.getElementById("tutorialModal");
+            if (event.target === modal) {
+                modal.style.display = "none";
+            }
+        });
+
 
         loadMode(currentMode);
     </script>

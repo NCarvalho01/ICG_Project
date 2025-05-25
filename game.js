@@ -1,4 +1,4 @@
-import { setupScene, create3DGrid, update3DSquare, clearScene, renderScene, getIntersectedSquare, createFlagForFace, createExplosionEffect } from './graphics.js';
+import { setupScene, create3DGrid, update3DSquare, clearScene, renderScene, getIntersectedSquare, createFlagForFace, createExplosionEffect, initRenderer } from './graphics.js';
 import * as THREE from 'three';
 
 let difficulty_presets = {
@@ -14,6 +14,7 @@ let grid3D = [];
 let initialClick = null;
 let timerStart = null;
 let timerActive = false;
+let animationFrameId = null; 
 
 class Square {
     constructor() {
@@ -26,6 +27,15 @@ class Square {
         this.cube = null;
     }
 }
+
+function registerEventListeners() {
+    document.addEventListener("contextmenu", onRightClick);
+    document.addEventListener("mousedown", onMouseDown);
+    document.addEventListener("mouseup", onMouseUp);
+    document.getElementById("restartButton").addEventListener("click", onRestartClick);
+    document.getElementById("difficultySelect").addEventListener("change", onDifficultyChange);
+}
+
 
 function isOnOuterShell(i, j, k, size) {
         return (
@@ -122,7 +132,7 @@ function onMouseDown(event) {
         if (intersectedSquare) {
             initialClick = intersectedSquare;
         }
-    }
+}
 
 document.addEventListener("mousedown", onMouseDown);
 
@@ -522,19 +532,29 @@ function createGrid() {
 }
 
 export function cleanup() {
+    // Remove listeners
     document.removeEventListener("contextmenu", onRightClick);
     document.removeEventListener("mousedown", onMouseDown);
     document.removeEventListener("mouseup", onMouseUp);
-    document.getElementById("restartButton").removeEventListener("click", onRestartClick);
-    document.getElementById("difficultySelect").removeEventListener("change", onDifficultyChange);
-
+    
+    // Para o timer
     timerActive = false;
+    if (animationFrameId !== null && animationFrameId !== undefined) {
+        cancelAnimationFrame(animationFrameId);
+        animationFrameId = null;
+    }
 
+    // Limpa a cena
     clearScene();
 
+    // Remove o canvas
     const canvas = document.querySelector("#WebGL-output canvas");
     if (canvas) canvas.remove();
 }
 
 
-startGame();
+export function initGame() {
+    initRenderer();
+    registerEventListeners();
+    startGame();
+}

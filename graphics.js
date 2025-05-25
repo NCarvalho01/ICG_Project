@@ -4,50 +4,50 @@ import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.139.2/examples/jsm
 import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { RGBELoader } from 'three/examples/jsm/loaders/RGBELoader.js';
 
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x224422);
-const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 20, 0);
-camera.lookAt(0, 0, 0);
-
-
-
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 0.4;
-document.getElementById("WebGL-output").appendChild(renderer.domElement);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-
-const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
-scene.add(ambientLight);
-
-const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
-directionalLight.position.set(10, 20, 10);
-directionalLight.castShadow = true;
-scene.add(directionalLight);
-
-const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
-backLight.position.set(-10, 15, -10);
-scene.add(backLight);
-
-
+let scene, camera, renderer, controls;
+let animatedFlags = [];
 let gameGrid;
 let gameDifficulty;
-const animatedFlags = [];
 
 
-const rgbeLoader = new RGBELoader();
-rgbeLoader.load('textures/industrial_sunset_02_puresky_1k.hdr', function(texture) {
-    texture.mapping = THREE.EquirectangularReflectionMapping;
-    scene.environment = texture;
-    scene.background = texture;
-});
+export function initRenderer() {
+        
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x224422);
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(0, 20, 0);
+    camera.lookAt(0, 0, 0);
 
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.4;
+    document.getElementById("WebGL-output").appendChild(renderer.domElement);
+
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+    scene.add(ambientLight);
+
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 3);
+    directionalLight.position.set(10, 20, 10);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
+    const backLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    backLight.position.set(-10, 15, -10);
+    scene.add(backLight);
+
+    const rgbeLoader = new RGBELoader();
+    rgbeLoader.load('textures/industrial_sunset_02_puresky_1k.hdr', function(texture) {
+        texture.mapping = THREE.EquirectangularReflectionMapping;
+        scene.environment = texture;
+        scene.background = texture;
+    });
+    animate();
+}
 
 export function clearScene() {
     const objectsToRemove = [...scene.children];
@@ -201,7 +201,6 @@ function animate() {
 
     renderer.render(scene, camera);
 }
-animate();
 
 export function create3DGrid(grid, difficulty) {
     const size = difficulty.size;
