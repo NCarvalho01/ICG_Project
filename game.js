@@ -212,7 +212,7 @@ function handleChording(i, j, k) {
 
     if (exploded) {
         revealAllMines();
-        document.getElementById("restartMessage").textContent = "💥 Mina Rebentada. Perdeste!";
+        document.getElementById("restartMessage").textContent = "💥 Mine exploded. You lost!";
         document.getElementById("restartMessage").style.color = "#FF0000";
         document.getElementById("restartContainer").style.display = "block";
         playing = false;
@@ -289,7 +289,7 @@ function checkWinCondition() {
     }
 
     if (totalSafeSquares === revealedSafeSquares) {
-        document.getElementById("restartMessage").textContent = "🎉 Parabéns! Ganhaste!";
+        document.getElementById("restartMessage").textContent = "🎉 Congratulations! You won!";
         document.getElementById("restartMessage").style.color = "#00FF00";
         document.getElementById("restartButton").style.backgroundColor = "#00cc00";
         document.getElementById("restartContainer").style.display = "block";
