@@ -23,6 +23,19 @@
             font-size: large;
             color: rgb(212, 248, 255);
         }
+
+        #modeContainer {
+            position: absolute;
+            top: 60px;
+            left: 10px;
+            background: rgba(77, 114, 63, 0.9);
+            padding: 10px;
+            border-radius: 5px;
+            font: round;
+            font-size: large;
+            color: rgb(212, 248, 255);
+        }
+
         #timer {
             position: absolute;
             top: 10px;
@@ -94,6 +107,15 @@
         </select>
     </div>
 
+    <div id="modeContainer">
+        <label for="modeSelect">Mode:</label>
+        <select id="modeSelect">
+            <option value="3d">3D</option>
+            <option value="2d">2D</option>
+        </select>
+    </div>
+
+
     <!-- 🕒 Temporizador -->
     <div id="timer">
         ⏱️ Time: <span id="timeValue">0.0s</span><br>
@@ -112,7 +134,55 @@
 
     <!-- 🧠 Código principal do jogo -->
     <script type="module">
-        import './game.js'; // o jogo começa aqui
+        let currentMode = '3d';
+        let currentGameModule = null;
+        let gameInstance = null;
+
+        async function loadMode(mode) {
+            // Limpar completamente o módulo anterior
+            if (gameInstance && gameInstance.cleanup) {
+                gameInstance.cleanup();
+                gameInstance = null;
+            }
+            
+            // Limpar o container WebGL
+            const webglOutput = document.getElementById("WebGL-output");
+            while (webglOutput.firstChild) {
+                webglOutput.removeChild(webglOutput.firstChild);
+            }
+
+            // Carregar o novo módulo
+            try {
+                if (mode === '3d') {
+                    currentGameModule = await import('./game.js');
+                } else if (mode === '2d') {
+                    currentGameModule = await import('./game2D.js');
+                }
+                
+                // Inicializar o novo jogo
+                gameInstance = currentGameModule;
+                currentMode = mode;
+                
+            } catch (error) {
+                console.error("Error loading game mode:", error);
+                // Recarregar o modo anterior em caso de erro
+                loadMode(currentMode);
+            }
+            if (gameInstance.initGame) {
+                gameInstance.initGame();
+            }
+        }
+
+        document.getElementById("modeSelect").addEventListener("change", (e) => {
+            const selected = e.target.value;
+            if (selected !== currentMode) {
+                loadMode(selected);
+            }
+        });
+
+        // Carregar o modo inicial
+        loadMode(currentMode);
     </script>
+
 </body>
 </html>

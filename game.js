@@ -66,7 +66,7 @@ function updateAllNeighborMineCounts() {
     }
 }
 
-document.addEventListener("contextmenu", function(event) {
+function onRightClick(event){
     event.preventDefault();
     if (!playing) return;
 
@@ -96,7 +96,10 @@ document.addEventListener("contextmenu", function(event) {
             square.cube.add(flag);
         }
     }
-});
+}
+
+document.addEventListener("contextmenu", onRightClick);
+
 
 function getVisibleFacesForCube(i, j, k) {
     const faces = [];
@@ -112,38 +115,42 @@ function getVisibleFacesForCube(i, j, k) {
     return faces;
 }
 
-document.addEventListener("mousedown", (event) => {
+function onMouseDown(event) {
     if (event.button !== 0) return;
-    if (!playing) return;
-    const intersectedSquare = getIntersectedSquare(event);
-    if (intersectedSquare) {
-        initialClick = intersectedSquare;
+        if (!playing) return;
+        const intersectedSquare = getIntersectedSquare(event);
+        if (intersectedSquare) {
+            initialClick = intersectedSquare;
+        }
     }
-});
 
-document.addEventListener("mouseup", (event) => {
+document.addEventListener("mousedown", onMouseDown);
+
+
+function onMouseUp(event) {
     if (event.button !== 0) return;
-    if (!playing || !initialClick) return;
+        if (!playing || !initialClick) return;
 
-    const intersectedSquare = getIntersectedSquare(event);
+        const intersectedSquare = getIntersectedSquare(event);
 
-    if (intersectedSquare &&
-    intersectedSquare.i === initialClick.i &&
-    intersectedSquare.j === initialClick.j &&
-    intersectedSquare.k === initialClick.k) {
+        if (intersectedSquare &&
+        intersectedSquare.i === initialClick.i &&
+        intersectedSquare.j === initialClick.j &&
+        intersectedSquare.k === initialClick.k) {
 
-    const square = grid3D[intersectedSquare.i][intersectedSquare.j][intersectedSquare.k];
+        const square = grid3D[intersectedSquare.i][intersectedSquare.j][intersectedSquare.k];
 
-    if (square.isRevealed && square.numNeighborMines > 0) {
-        handleChording(intersectedSquare.i, intersectedSquare.j, intersectedSquare.k);
-    } else {
-        clickSquare(intersectedSquare.i, intersectedSquare.j, intersectedSquare.k, intersectedSquare.face);
+        if (square.isRevealed && square.numNeighborMines > 0) {
+            handleChording(intersectedSquare.i, intersectedSquare.j, intersectedSquare.k);
+        } else {
+            clickSquare(intersectedSquare.i, intersectedSquare.j, intersectedSquare.k, intersectedSquare.face);
+        }
     }
-}
+        initialClick = null;
+    }
 
+document.addEventListener("mouseup", onMouseUp);   
 
-    initialClick = null;
-});
 
 function handleChording(i, j, k) {
     const square = grid3D[i][j][k];
@@ -360,10 +367,13 @@ function revealAllMines() {
     }
 }
 
-document.getElementById("restartButton").addEventListener("click", function() {
+function onRestartClick() {
     document.getElementById("restartContainer").style.display = "none";
     restartGame();
-});
+}
+
+document.getElementById("restartButton").addEventListener("click", onRestartClick);
+
 
 function restartGame() {
     playing = true;
@@ -436,11 +446,13 @@ function startGame() {
     updateMinesLeft();
 }
 
-document.getElementById("difficultySelect").addEventListener("change", function() {
+function onDifficultyChange() {
     const selectedDifficulty = document.getElementById("difficultySelect").value;
     difficulty = difficulty_presets[selectedDifficulty];
     restartGame();
-});
+}
+
+document.getElementById("difficultySelect").addEventListener("change", onDifficultyChange);
 
 function animateTimer(timestamp) {
     if (!timerActive) return;
@@ -505,5 +517,21 @@ function createGrid() {
             Array(size).fill().map(() => new Square())
         ));
 }
+
+export function cleanup() {
+    document.removeEventListener("contextmenu", onRightClick);
+    document.removeEventListener("mousedown", onMouseDown);
+    document.removeEventListener("mouseup", onMouseUp);
+    document.getElementById("restartButton").removeEventListener("click", onRestartClick);
+    document.getElementById("difficultySelect").removeEventListener("change", onDifficultyChange);
+
+    timerActive = false;
+
+    clearScene();
+
+    const canvas = document.querySelector("#WebGL-output canvas");
+    if (canvas) canvas.remove();
+}
+
 
 startGame();

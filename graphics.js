@@ -95,6 +95,7 @@ export function setupScene(grid, difficulty) {
     const grassMaterial = new THREE.MeshStandardMaterial({
         map: colorMap,
         normalMap: normalMap,
+        color: 0xaaaaaa,     // Cor base escura
         side: THREE.DoubleSide
     });
 
