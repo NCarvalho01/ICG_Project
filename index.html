@@ -141,6 +141,57 @@
             color: black;
         }
 
+        .toggle-switch {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-top: 5px;
+        }
+
+        .switch {
+        position: relative;
+        display: inline-block;
+        width: 50px;
+        height: 24px;
+        }
+
+        .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+        }
+
+        .slider {
+        position: absolute;
+        cursor: pointer;
+        top: 0; left: 0;
+        right: 0; bottom: 0;
+        background-color: #ccc;
+        transition: .4s;
+        border-radius: 24px;
+        }
+
+        .slider:before {
+        position: absolute;
+        content: "";
+        height: 18px;
+        width: 18px;
+        left: 3px;
+        bottom: 3px;
+        background-color: white;
+        transition: .4s;
+        border-radius: 50%;
+        }
+
+        input:checked + .slider {
+        background-color: #4CAF50;
+        }
+
+        input:checked + .slider:before {
+        transform: translateX(26px);
+        }
+
+
     </style>
 
     <!-- Font -->
@@ -171,12 +222,17 @@
     </div>
 
     <div id="modeContainer">
-        <label for="modeSelect">Mode:</label>
-        <select id="modeSelect">
-            <option value="2d">2D</option>
-            <option value="3d">3D</option>
-        </select>
+        <label for="modeToggle"></label>
+        <div class="toggle-switch">
+            <span>2D</span>
+            <label class="switch">
+            <input type="checkbox" id="modeToggle">
+            <span class="slider"></span>
+            </label>
+            <span>3D</span>
+        </div>
     </div>
+
 
     <div id="tutorialButtonContainer">
         <button id="tutorialButton">❓ Tutorial</button>
@@ -274,12 +330,13 @@
             loadMode('2d').catch(console.error);
         });
 
-        document.getElementById("modeSelect").addEventListener("change", (e) => {
-            const selected = e.target.value;
+        document.getElementById("modeToggle").addEventListener("change", (e) => {
+            const selected = e.target.checked ? "3d" : "2d";
             if (selected !== currentMode) {
                 loadMode(selected);
             }
         });
+
 
         // Mostrar / esconder tutorial
         document.getElementById("tutorialButton").addEventListener("click", () => {
