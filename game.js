@@ -326,6 +326,14 @@ function revealAdjacentSquares(i, j, k) {
                 continue; 
             }
         } else { 
+            if (currentSquare.isFlagged) {
+                currentSquare.isFlagged = false;
+
+                const toRemove = currentSquare.cube.children.filter(child => child.name && child.name.startsWith("flag_"));
+                toRemove.forEach(flag => currentSquare.cube.remove(flag));
+
+                updateMinesLeft();
+            }
             currentSquare.isRevealed = true;
         }
         
@@ -493,7 +501,6 @@ function stopTimer() {
 function getHighScoreKey() {
     return `bestTime_${mode}_${difficulty.name}`;
 }
-
 
 function updateHighScoreIfNeeded(currentTime) {
     const key = getHighScoreKey();

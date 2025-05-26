@@ -202,10 +202,15 @@ function revealAdjacentSquares(startX, startY) {
         update3DSquare(square, x, y);
         if (square.isFlagged) {
             square.isFlagged = false;
-            const flagMesh = square.cube.getObjectByName("flag");
-            if (flagMesh) square.cube.remove(flagMesh);
+            
+            ["flag", "flag_top", "flag_bottom"].forEach(name => {
+                const mesh = square.cube.getObjectByName(name);
+                if (mesh) square.cube.remove(mesh);
+            });
+
             updateMinesLeft();
         }
+
         if (square.numNeighborMines > 0) continue;
         for (let dx = -1; dx <= 1; dx++) {
             for (let dy = -1; dy <= 1; dy++) {
