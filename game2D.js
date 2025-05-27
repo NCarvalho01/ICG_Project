@@ -64,8 +64,10 @@ function onRightClick(event) {
         flagBottom.rotation.x = Math.PI; // Inverter
         square.cube.add(flagBottom);
     } else {
-        const existingFlag = square.cube.getObjectByName("flag");
-        if (existingFlag) square.cube.remove(existingFlag);
+        ["flag", "flag_top", "flag_bottom"].forEach(name => {
+            const existing = square.cube.getObjectByName(name);
+            if (existing) square.cube.remove(existing);
+        });
     }
 }
 
