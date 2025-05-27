@@ -304,47 +304,43 @@ function checkWinCondition() {
 }
 
 function revealAdjacentSquares(i, j, k) {
-    const queue = [{i, j, k}];
+    const queue = [{ i, j, k }];
     const visited = new Set();
-    const size = difficulty.size; 
+    const size = difficulty.size;
 
     while (queue.length > 0) {
-        const {i, j, k} = queue.shift();
+        const { i, j, k } = queue.shift();
         const key = `${i},${j},${k}`;
 
-        if (visited.has(key)) continue; 
+        if (visited.has(key)) continue;
         visited.add(key);
 
         const currentSquare = grid3D[i][j][k];
 
-        if (currentSquare.isMine || currentSquare.isFlagged) {
+        // 🛠️ Remover bandeira se estiver presente
+        if (currentSquare.isFlagged) {
+            currentSquare.isFlagged = false;
+
+            const toRemove = currentSquare.cube.children.filter(child => child.name && child.name.startsWith("flag_"));
+            toRemove.forEach(flag => currentSquare.cube.remove(flag));
+
+            updateMinesLeft();
+        }
+
+        // ⚠️ Agora sim, podemos saltar minas
+        if (currentSquare.isMine) {
             continue;
         }
 
-        if (currentSquare.isRevealed) {
-            if (currentSquare.numNeighborMines > 0) {
-                continue; 
-            }
-        } else { 
-            if (currentSquare.isFlagged) {
-                currentSquare.isFlagged = false;
-
-                const toRemove = currentSquare.cube.children.filter(child => child.name && child.name.startsWith("flag_"));
-                toRemove.forEach(flag => currentSquare.cube.remove(flag));
-
-                updateMinesLeft();
-            }
+        if (!currentSquare.isRevealed) {
             currentSquare.isRevealed = true;
         }
-        
+
         if (isOnOuterShell(i, j, k, size)) {
             update3DSquare(currentSquare, i, j, k);
-        } else {
-            if (currentSquare.numNeighborMines > 0) {
-                continue;
-            }
         }
-        
+
+        // Se tiver minas vizinhas, não continua o flood
         if (currentSquare.numNeighborMines > 0) {
             continue;
         }
@@ -353,15 +349,16 @@ function revealAdjacentSquares(i, j, k) {
             for (let dj = -1; dj <= 1; dj++) {
                 for (let dk = -1; dk <= 1; dk++) {
                     if (di === 0 && dj === 0 && dk === 0) continue;
-                    
-                    const ni = i + di, nj = j + dj, nk = k + dk;
-                    if (ni >= 0 && ni < size &&
-                        nj >= 0 && nj < size &&
-                        nk >= 0 && nk < size) {
-                        const neighbor = grid3D[ni][nj][nk];
 
-                        if (!neighbor.isRevealed && !neighbor.isFlagged && isOnOuterShell(ni, nj, nk, size)) {
-                            queue.push({i: ni, j: nj, k: nk});
+                    const ni = i + di, nj = j + dj, nk = k + dk;
+                    if (
+                        ni >= 0 && ni < size &&
+                        nj >= 0 && nj < size &&
+                        nk >= 0 && nk < size
+                    ) {
+                        const neighbor = grid3D[ni][nj][nk];
+                        if (!neighbor.isRevealed && isOnOuterShell(ni, nj, nk, size)) {
+                            queue.push({ i: ni, j: nj, k: nk });
                         }
                     }
                 }
@@ -369,6 +366,7 @@ function revealAdjacentSquares(i, j, k) {
         }
     }
 }
+
 
 function revealAllMines() {
     for (let i = 0; i < difficulty.size; i++) {
